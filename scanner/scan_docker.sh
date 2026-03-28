@@ -75,24 +75,54 @@ find "$SCAN_DIR" -maxdepth "$DEPTH" \( -name "Dockerfile" -o -name "Dockerfile.*
 done
 
 # --- docker-compose: contextualized build.args ---
+# Use Python to properly parse YAML and extract only build.args
+_extract_build_args() {
+  local dc_file="$1"
+  python3 -c "
+import sys, json
+try:
+    import yaml
+except ImportError:
+    sys.exit(0)
+try:
+    with open('$dc_file') as f:
+        data = yaml.safe_load(f)
+    if not data or 'services' not in data:
+        sys.exit(0)
+    for svc_name, svc in data['services'].items():
+        if not isinstance(svc, dict):
+            continue
+        build = svc.get('build')
+        if isinstance(build, dict):
+            args = build.get('args')
+        else:
+            continue
+        if not args:
+            continue
+        if isinstance(args, dict):
+            for k in args:
+                print(k)
+        elif isinstance(args, list):
+            for item in args:
+                print(str(item).split('=')[0])
+except Exception:
+    sys.exit(0)
+" 2>/dev/null || true
+}
+
 # shellcheck disable=SC2086
 find "$SCAN_DIR" -maxdepth "$DEPTH" \( -name "docker-compose*.yml" -o -name "docker-compose*.yaml" \) $_DOCKER_FIND_EXCLUDES 2>/dev/null | while read dc; do
   proj=$(echo "$dc" | sed "s|$SCAN_DIR/||")
 
-  # Extract build args section
-  build_section=$(grep -A20 "build:" "$dc" 2>/dev/null || true)
-  args_lines=$(echo "$build_section" | grep -i "args" -A10 2>/dev/null | grep -E "^\s+-\s|^\s+\w+:" 2>/dev/null | head -20 || true)
-
-  [ -z "$args_lines" ] && continue
+  args_list=$(_extract_build_args "$dc")
+  [ -z "$args_list" ] && continue
 
   echo "### Compose: \`$proj\`" >> "$REPORT"
 
   has_secret=0
   has_safe=0
 
-  while IFS= read -r arg_line; do
-    [ -z "$arg_line" ] && continue
-    arg_name=$(echo "$arg_line" | sed 's/.*- //;s/:.*//;s/=.*//' | xargs)
+  while IFS= read -r arg_name; do
     [ -z "$arg_name" ] && continue
 
     if echo "$arg_name" | grep -qiE "$SECRET_PATTERNS"; then
@@ -107,9 +137,8 @@ find "$SCAN_DIR" -maxdepth "$DEPTH" \( -name "docker-compose*.yml" -o -name "doc
     else
       echo "- 💡 build.args contient \`$arg_name\` — à vérifier" >> "$REPORT"
     fi
-  done <<< "$args_lines"
+  done <<< "$args_list"
 
-  # Fallback if we couldn't parse individual args
   if [ "$has_secret" -eq 0 ] && [ "$has_safe" -eq 0 ]; then
     echo "- 💡 build.args détecté — vérifier manuellement si des secrets sont exposés" >> "$REPORT"
   fi

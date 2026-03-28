@@ -19,7 +19,7 @@ RUN curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh |
 # === Stage 2: Dépendances Python ===
 FROM python:3.12-alpine AS python-deps
 
-RUN pip install --no-cache-dir --break-system-packages pip-audit
+RUN pip install --no-cache-dir --break-system-packages pip-audit pyyaml
 
 # === Stage 3: Image finale minimale ===
 FROM python:3.12-alpine AS final
