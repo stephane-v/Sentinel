@@ -5,8 +5,8 @@ Scanner Docker autonome qui detecte les vulnerabilites connues (CVE), les paquet
 ## Fonctionnalites
 
 - **Detection IOCs** : fichiers malveillants, patterns suspects, caracteres Unicode invisibles (GlassWorm), hashes de payloads connus
-- **Scan Python** : paquets PyPI compromis, dependances non pinnees, CVE via pip-audit et osv-scanner
-- **Scan Node.js** : paquets npm compromis, install scripts suspects, CVE via npm audit et osv-scanner
+- **Scan Python** : paquets PyPI compromis, dependances non pinnees, CVE via pip-audit, osv-scanner et Grype
+- **Scan Node.js** : paquets npm compromis, install scripts suspects, CVE via npm audit, osv-scanner et Grype
 - **Analyse Docker** : secrets dans Dockerfile (ARG/ENV), fichiers sensibles copies, absence de USER non-root, single-stage builds
 - **Rapport Markdown** genere automatiquement avec code retour (0=clean, 1=alertes, 2=critique)
 
@@ -177,7 +177,7 @@ For comprehensive protection, consider combining:
 
 | Capability | Sentinel | Socket.dev | OSV-Scanner | Snyk | npm/pip audit | Safe Chain | PMG | shai-hulud-scanner |
 |---|---|---|---|---|---|---|---|---|
-| Known CVE detection | ✅ via npm/pip audit, osv-scanner | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ |
+| Known CVE detection | ✅ via npm/pip audit, osv-scanner, Grype | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ |
 | Zero-day malware detection | ❌ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ |
 | Campaign IOC detection | ✅ Shai-Hulud, LiteLLM, Cline, GlassWorm | ⚠️ partial | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ Shai-Hulud only |
 | Behavioral analysis | ❌ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ |
@@ -204,7 +204,6 @@ For comprehensive protection, consider combining:
 
 Features not yet implemented:
 - **ctime anti-timestomping** — Sentinel already displays file birth time and mtime for each detection, but does not yet use kernel ctime (`stat -c '%z'`) which is resistant to timestomping. Future versions will show ctime alongside mtime to help identify backdated files.
-- **Grype project scanning** — Grype DB is updated via `sentinel update` but not yet used to scan project dependencies. Future versions will run `grype dir:` or `grype sbom:` against each project.
 - **SBOM generation** — export dependency lists in SPDX/CycloneDX format
 - **JSON report format** — `REPORT_FORMAT=json` is accepted but not yet implemented
 

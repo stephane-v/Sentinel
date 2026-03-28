@@ -64,4 +64,41 @@ if [ "$osv_count" -gt 0 ] 2>/dev/null; then
   echo "- ⚠️ **$osv_count vulnérabilités osv-scanner**" >> "$REPORT"
 fi
 
+# --- Grype (second avis, base Anchore) ---
+if [ "${GRYPE_AVAILABLE:-0}" -eq 1 ] && [ "${GRYPE_DATE:-non installee}" != "non installee" ]; then
+  echo "  grype..."
+  grype_output=$(GRYPE_DB_CACHE_DIR="${DATA_DIR:-/data}/grype" grype dir:"$PROJ" --only-fixed -o json -q 2>/dev/null || echo '{"matches":[]}')
+
+  grype_filtered=$(echo "$grype_output" | jq --argjson min "${SEVERITY_MIN_RANK:-2}" '
+    [.matches[] |
+      (if .vulnerability.severity == "Critical" then 4
+       elif .vulnerability.severity == "High" then 3
+       elif .vulnerability.severity == "Medium" then 2
+       elif .vulnerability.severity == "Low" then 1
+       else 0 end) as $rank |
+      select($rank >= $min)
+    ]' 2>/dev/null || echo '[]')
+
+  grype_count=$(echo "$grype_filtered" | jq 'length' 2>/dev/null | tail -1 || true)
+  grype_count="${grype_count:-0}"
+
+  if [ "$grype_count" -gt 0 ] 2>/dev/null; then
+    grype_critical=$(echo "$grype_filtered" | jq '[.[] | select(.vulnerability.severity == "Critical")] | length' 2>/dev/null | tail -1 || true)
+    grype_high=$(echo "$grype_filtered" | jq '[.[] | select(.vulnerability.severity == "High")] | length' 2>/dev/null | tail -1 || true)
+    grype_critical="${grype_critical:-0}"; grype_high="${grype_high:-0}"
+
+    log_attention "[$PROJ_NAME] Grype: $grype_count vulnérabilités ($grype_critical Critical, $grype_high High)"
+    echo "- ⚠️ **Grype : $grype_count vulnérabilités** ($grype_critical Critical, $grype_high High) — *second avis, base Anchore*" >> "$REPORT"
+
+    echo "$grype_filtered" | jq -r '.[0:10][] |
+      "  - `\(.artifact.name)` \(.artifact.version) → \(.vulnerability.id) (\(.vulnerability.severity)) — fix: \(.vulnerability.fix.versions // ["?"] | join(", "))"' 2>/dev/null >> "$REPORT" || true
+    if [ "$grype_count" -gt 10 ] 2>/dev/null; then
+      echo "  - *... et $((grype_count - 10)) autres*" >> "$REPORT"
+    fi
+    SUMMARY_VULN_GRYPE=$((SUMMARY_VULN_GRYPE + 1))
+  else
+    echo "- ✅ Aucune vulnérabilité Grype" >> "$REPORT"
+  fi
+fi
+
 echo "" >> "$REPORT"

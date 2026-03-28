@@ -62,6 +62,25 @@ SUMMARY_NO_USER=0
 SUMMARY_SINGLE_STAGE=0
 SUMMARY_BUILD_ARGS_SECRET=0
 SUMMARY_BUILD_ARGS_SAFE=0
+SUMMARY_VULN_GRYPE=0
+
+# Grype availability
+GRYPE_AVAILABLE=0
+if command -v grype >/dev/null 2>&1; then
+  GRYPE_AVAILABLE=1
+fi
+
+# Severity level mapping for filtering
+_severity_rank() {
+  case "$(echo "$1" | tr '[:upper:]' '[:lower:]')" in
+    critical) echo 4 ;;
+    high) echo 3 ;;
+    medium) echo 2 ;;
+    low) echo 1 ;;
+    *) echo 0 ;;
+  esac
+}
+SEVERITY_MIN_RANK=$(_severity_rank "$SEVERITY_MIN")
 
 # Couleurs
 RED='\033[0;31m'
@@ -215,6 +234,7 @@ case "${1:-scan}" in
 | Hashes malveillants | $([ "$SUMMARY_HASH_MATCH" -gt 0 ] && echo "🚨 $SUMMARY_HASH_MATCH trouvé(s)" || echo "✅ 0 trouvé") |
 | Vulnérabilités pip-audit | $([ "$SUMMARY_VULN_PIP" -gt 0 ] && echo "⚠️ $SUMMARY_VULN_PIP projet(s) affecté(s)" || echo "✅ 0 critique") |
 | Vulnérabilités npm audit | $([ "$SUMMARY_VULN_NPM" -gt 0 ] && echo "⚠️ $SUMMARY_VULN_NPM projet(s) affecté(s)" || echo "✅ 0 critique") |
+| Vulnérabilités Grype | $([ "$SUMMARY_VULN_GRYPE" -gt 0 ] && echo "⚠️ $SUMMARY_VULN_GRYPE projet(s) affecté(s)" || echo "✅ 0 trouvé") |
 | Unicode suspects (code source) | $([ "$SUMMARY_UNICODE_SOURCE" -gt 0 ] && echo "⚠️ $SUMMARY_UNICODE_SOURCE fichier(s) à vérifier" || echo "✅ 0 trouvé") |
 | Patterns suspects dans le code | $([ "$SUMMARY_PATTERN_SUSPECT" -gt 0 ] && echo "⚠️ $SUMMARY_PATTERN_SUSPECT pattern(s)" || echo "✅ 0 trouvé") |
 | Secrets dans build.args | $([ "$SUMMARY_BUILD_ARGS_SECRET" -gt 0 ] && echo "⚠️ $SUMMARY_BUILD_ARGS_SECRET fichier(s)" || echo "✅ 0 trouvé") |
