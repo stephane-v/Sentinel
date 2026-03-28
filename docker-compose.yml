@@ -9,6 +9,8 @@ services:
       - ./reports:/reports
       # Persistance des bases de données CVE (osv-scanner, grype)
       - ./data:/data
+    # UID/GID de l'utilisateur hôte pour écrire dans ./reports et ./data
+    user: "${UID:-1000}:${GID:-1000}"
     environment:
       - SCAN_DEPTH=${SCAN_DEPTH:-4}          # Profondeur max de recherche
       - REPORT_FORMAT=${REPORT_FORMAT:-md}   # md ou json

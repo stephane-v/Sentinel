@@ -38,15 +38,19 @@ COPY --from=downloader /usr/local/bin/grype /usr/local/bin/grype
 COPY --from=python-deps /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
 COPY --from=python-deps /usr/local/bin/pip-audit /usr/local/bin/pip-audit
 
+# Utilisateur non-root
+RUN addgroup -S sentinel && adduser -S sentinel -G sentinel
+
+# Créer les répertoires de travail avec les bonnes permissions
+RUN mkdir -p /reports /data /projects && \
+    chown sentinel:sentinel /reports /data
+
 # --- Structure ---
 WORKDIR /sentinel
 COPY scanner/ /sentinel/
 RUN chmod +x /sentinel/*.sh
 
-# Répertoire pour les bases CVE
-VOLUME /data
-# Répertoire pour les rapports
-VOLUME /reports
+USER sentinel
 
 ENTRYPOINT ["/sentinel/sentinel.sh"]
 CMD ["scan", "/projects"]

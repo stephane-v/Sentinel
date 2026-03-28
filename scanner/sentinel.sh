@@ -59,8 +59,15 @@ case "${1:-scan}" in
       exit 1
     fi
 
-    # Créer le répertoire de rapports
-    mkdir -p "$REPORTS_DIR"
+    # Vérifier que le répertoire de rapports est accessible en écriture
+    mkdir -p "$REPORTS_DIR" 2>/dev/null || true
+    if [ ! -w "$REPORTS_DIR" ]; then
+      echo "ERREUR: $REPORTS_DIR n'est pas accessible en écriture."
+      echo "Vérifiez les permissions du répertoire ./reports sur l'hôte :"
+      echo "  mkdir -p reports && chmod 777 reports"
+      echo "  # ou lancez avec : UID=\$(id -u) GID=\$(id -g) docker compose run --rm sentinel"
+      exit 1
+    fi
 
     # Initialiser le rapport
     cat > "$REPORT_FILE" <<EOF
