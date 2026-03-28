@@ -10,7 +10,16 @@ DATA_DIR="/data"
 SCAN_DEPTH="${SCAN_DEPTH:-4}"
 SEVERITY_MIN="${SEVERITY_MIN:-medium}"
 EXCLUDE_DIRS="${EXCLUDE_DIRS:-sentinel}"
+IOC_AUTO_UPDATE="${IOC_AUTO_UPDATE:-true}"
 REPORT_FILE="$REPORTS_DIR/sentinel-$(date +%Y-%m-%d_%H%M%S).md"
+
+# === IOC directory: persistent copy in data volume ===
+# First run: seed from image. Subsequent runs: use persisted copy (updated by feeds).
+IOC_DIR="$DATA_DIR/iocs"
+if [ ! -d "$IOC_DIR" ]; then
+  cp -r /sentinel/iocs "$IOC_DIR" 2>/dev/null || IOC_DIR="/sentinel/iocs"
+fi
+export IOC_DIR
 
 # === Load i18n ===
 REPORT_LANG="${REPORT_LANG:-en}"
@@ -117,9 +126,14 @@ case "${1:-scan}" in
     echo "-- OSV Scanner --"
     osv-scanner --experimental-local-db --experimental-download-offline-databases 2>&1 || true
 
-    echo "-- Custom IOCs --"
-    echo "IOC files must be updated manually or via a dedicated script."
-    echo "Last IOC update: $(stat -c '%y' /sentinel/iocs/compromised_npm.txt 2>/dev/null || echo 'unknown')"
+    echo "-- IOC feeds --"
+    if [ "$IOC_AUTO_UPDATE" = "true" ]; then
+      bash "$(dirname "$0")/update_iocs.sh"
+    else
+      echo "IOC auto-update disabled (IOC_AUTO_UPDATE=false)"
+      echo "IOC files can be updated manually in $IOC_DIR/"
+    fi
+    echo "Last IOC update: $(stat -c '%y' "$IOC_DIR/compromised_npm.txt" 2>/dev/null || echo 'unknown')"
 
     echo "=== Databases updated ==="
     exit 0

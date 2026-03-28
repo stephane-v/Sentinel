@@ -31,7 +31,7 @@ while IFS= read -r line; do
       SUMMARY_COMPROMISED_PKG=$((SUMMARY_COMPROMISED_PKG + 1))
     fi
   fi
-done < /sentinel/iocs/compromised_pypi.txt
+done < ${IOC_DIR}/compromised_pypi.txt
 
 # --- Unpinned versions ---
 for req in "$PROJ"/requirements*.txt; do

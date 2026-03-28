@@ -24,9 +24,9 @@ RUN pip install --no-cache-dir --break-system-packages pip-audit pyyaml
 # === Stage 3: Image finale minimale ===
 FROM python:3.12-alpine AS final
 
-# Outils système (sans curl ni git — plus nécessaires au runtime)
+# System tools (curl needed for IOC feed updates)
 RUN apk add --no-cache \
-    bash jq grep findutils coreutils \
+    bash jq grep findutils coreutils curl \
     nodejs npm \
     openssl
 

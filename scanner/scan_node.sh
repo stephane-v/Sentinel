@@ -27,7 +27,7 @@ while IFS= read -r line; do
     echo "- 🚨 **$L_COMPROMISED_PKG** : \`$pkg@$ver\`" >> "$REPORT"
     SUMMARY_COMPROMISED_PKG=$((SUMMARY_COMPROMISED_PKG + 1))
   fi
-done < /sentinel/iocs/compromised_npm.txt
+done < ${IOC_DIR}/compromised_npm.txt
 
 # --- Packages with install scripts ---
 script_count=$(jq '[.packages | to_entries[] | select(.value.hasInstallScript == true)] | length' "$LOCKFILE" 2>/dev/null || echo "?")

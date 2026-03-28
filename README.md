@@ -143,6 +143,7 @@ Verdict: ✅ CLEAN — No issues detected.
 | `SEVERITY_MIN` | `medium` | Minimum severity threshold: `low`, `medium`, `high`, `critical` |
 | `REPORT_FORMAT` | `md` | Report format: `md` or `json` |
 | `REPORT_LANG` | `en` | Report language: `en` or `fr` |
+| `IOC_AUTO_UPDATE` | `true` | Auto-update IOCs from public feeds (OSV.dev, GitHub Advisories) |
 | `UID` | `1000` | Container user UID |
 | `GID` | `1000` | Container user GID |
 
@@ -173,6 +174,7 @@ sentinel/
 │   ├── scan_node.sh            # Node.js scan (npm audit + IOCs)
 │   ├── scan_docker.sh          # Dockerfile + docker-compose analysis
 │   ├── scan_iocs.sh            # IOC search (supply chain indicators)
+│   ├── update_iocs.sh          # Auto-update IOCs from public feeds
 │   ├── i18n/
 │   │   ├── en.sh               # English translations (default)
 │   │   └── fr.sh               # French translations
@@ -188,6 +190,19 @@ sentinel/
 ├── data/                       # CVE databases (persisted via volume)
 └── README.md
 ```
+
+## IOC auto-update
+
+When running `docker compose run --rm sentinel update`, Sentinel automatically fetches the latest malware indicators from public threat intelligence feeds:
+
+- **[OSV.dev](https://osv.dev)** — Google's open vulnerability database. Fetches `MAL-*` advisories (confirmed malware) for npm and PyPI from the last 90 days.
+- **[GitHub Advisory Database](https://github.com/advisories)** — GitHub's security advisories. Fetches advisories classified as `MALWARE` for npm and PyPI.
+
+New entries are merged with existing IOC lists without duplicates. Manual entries are never removed. A backup is created before each update.
+
+Set `IOC_AUTO_UPDATE=false` in `.env` to disable (air-gapped environments).
+
+IOC lists are persisted in the `./data/iocs/` volume so updates survive container rebuilds.
 
 ## Included IOC databases
 

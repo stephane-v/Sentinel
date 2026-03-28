@@ -17,6 +17,7 @@ services:
       - SEVERITY_MIN=${SEVERITY_MIN:-medium}
       - EXCLUDE_DIRS=${EXCLUDE_DIRS:-sentinel}
       - REPORT_LANG=${REPORT_LANG:-en}
+      - IOC_AUTO_UPDATE=${IOC_AUTO_UPDATE:-true}
     # CLI tool — no web exposure, no Traefik
     # Network access needed only for CVE database updates
     networks:

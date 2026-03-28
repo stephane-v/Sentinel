@@ -81,7 +81,7 @@ while IFS= read -r pattern; do
       fi
     done <<< "$results"
   fi
-done < /sentinel/iocs/malicious_files.txt
+done < ${IOC_DIR}/malicious_files.txt
 
 # --- Malicious patterns in code ---
 echo "-- Malicious patterns in code --"
@@ -127,7 +127,7 @@ while IFS= read -r pattern; do
       SUMMARY_PATTERN_SUSPECT=$((SUMMARY_PATTERN_SUSPECT + 1))
     done <<< "$results"
   fi
-done < /sentinel/iocs/malicious_patterns.txt
+done < ${IOC_DIR}/malicious_patterns.txt
 
 # --- Invisible Unicode characters ---
 echo "-- Invisible Unicode characters --"
@@ -204,7 +204,7 @@ while IFS= read -r hash; do
       SUMMARY_HASH_MATCH=$((SUMMARY_HASH_MATCH + 1))
     done <<< "$results"
   fi
-done < /sentinel/iocs/malicious_hashes.txt
+done < ${IOC_DIR}/malicious_hashes.txt
 rm -f "$HASH_FILE"
 
 # --- Assemble IOC section ---
