@@ -23,6 +23,16 @@ _build_find_excludes() {
 }
 FIND_EXCLUDES=$(_build_find_excludes)
 
+# Afficher les dates d'un fichier (creation/modification)
+_file_dates() {
+  local f="$1"
+  local mod cre
+  mod=$(stat -c '%y' "$f" 2>/dev/null | cut -d'.' -f1) || mod="?"
+  cre=$(stat -c '%w' "$f" 2>/dev/null | cut -d'.' -f1) || cre="?"
+  [ "$cre" = "-" ] && cre="n/a"
+  echo "cree: $cre | modifie: $mod"
+}
+
 echo "## Recherche IOCs (Indicators of Compromise)" >> "$REPORT"
 echo "" >> "$REPORT"
 
@@ -39,9 +49,11 @@ while IFS= read -r pattern; do
     2>/dev/null || true)
   if [ -n "$results" ]; then
     log_critical "Fichier suspect trouvé: $pattern"
-    echo "$results" | while read -r f; do echo "  → $f"; done
+    echo "$results" | while read -r f; do echo "  → $f ($(_file_dates "$f"))"; done
     echo "- ❌ **Fichier malveillant** : \`$pattern\` trouvé" >> "$REPORT"
-    echo "$results" | while read -r f; do echo "  - \`$f\`" >> "$REPORT"; done
+    echo "$results" | while read -r f; do
+      echo "  - \`$f\` — *$(_file_dates "$f")*" >> "$REPORT"
+    done
     IOC_COUNT=$((IOC_COUNT + 1))
   fi
 done < /sentinel/iocs/malicious_files.txt
@@ -52,7 +64,7 @@ while IFS= read -r pattern; do
   [ -z "$pattern" ] && continue
   [[ "$pattern" =~ ^# ]] && continue
   # shellcheck disable=SC2086
-  results=$(grep -rl \
+  results=$(grep -rl --binary-files=without-match \
     --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=.venv --exclude-dir=venv \
     ${GREP_EXCLUDE_DIRS:-} \
     --exclude=".env" --exclude=".env.*" \
@@ -63,16 +75,18 @@ while IFS= read -r pattern; do
   if [ -n "$results" ]; then
     log_critical "Pattern suspect trouvé: $pattern"
     echo "- ❌ **Pattern malveillant** : \`$pattern\`" >> "$REPORT"
-    echo "$results" | while read -r f; do echo "  - \`$f\`" >> "$REPORT"; done
+    echo "$results" | while read -r f; do
+      echo "  - \`$f\` — *$(_file_dates "$f")*" >> "$REPORT"
+    done
     IOC_COUNT=$((IOC_COUNT + 1))
   fi
 done < /sentinel/iocs/malicious_patterns.txt
 
 # --- Caractères Unicode invisibles (GlassWorm) ---
 echo "-- Caractères Unicode invisibles --"
-# Scan uniquement les fichiers source (pas les binaires/images/fonts)
+# Scan uniquement les fichiers source texte (--binary-files=without-match exclut binaires/images/fonts)
 # shellcheck disable=SC2086
-unicode_results=$(grep -rPl \
+unicode_results=$(grep -rPl --binary-files=without-match \
   --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=.venv --exclude-dir=venv \
   ${GREP_EXCLUDE_DIRS:-} \
   --exclude=".env" --exclude=".env.*" \
@@ -83,7 +97,9 @@ unicode_results=$(grep -rPl \
 if [ -n "$unicode_results" ]; then
   log_critical "Caractères Unicode invisibles détectés (technique GlassWorm)"
   echo "- ❌ **Unicode invisibles** (GlassWorm)" >> "$REPORT"
-  echo "$unicode_results" | while read -r f; do echo "  - \`$f\`" >> "$REPORT"; done
+  echo "$unicode_results" | while read -r f; do
+    echo "  - \`$f\` — *$(_file_dates "$f")*" >> "$REPORT"
+  done
   IOC_COUNT=$((IOC_COUNT + 1))
 fi
 
@@ -104,6 +120,9 @@ while IFS= read -r hash; do
   if [ -n "$results" ]; then
     log_critical "Hash malveillant trouvé: $hash"
     echo "- ❌ **Hash malveillant** : \`$hash\`" >> "$REPORT"
+    echo "$results" | while IFS=' ' read -r _ fpath; do
+      echo "  - \`$fpath\` — *$(_file_dates "$fpath")*" >> "$REPORT"
+    done
     IOC_COUNT=$((IOC_COUNT + 1))
   fi
 done < /sentinel/iocs/malicious_hashes.txt
