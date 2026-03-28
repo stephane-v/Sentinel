@@ -1,0 +1,18 @@
+# Patterns à rechercher dans le code source
+# Exfiltration endpoints
+webhook.site
+# Shai-Hulud signatures
+Shai-Hulud
+Sha1-Hulud
+s1ngularity-repository
+# SANDWORM_MODE
+SANDWORM_MODE
+# Autres malwares
+QUIETVAULT
+CanisterWorm
+GlassWorm
+TeamPCP
+tpcp-docs
+# Domaines C2 connus
+checkmarx.zone
+models.litellm.cloud

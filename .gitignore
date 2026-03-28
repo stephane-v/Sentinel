@@ -1,0 +1,7 @@
+# Rapports générés
+reports/*.md
+!reports/.gitkeep
+
+# Bases CVE téléchargées
+data/*
+!data/.gitkeep

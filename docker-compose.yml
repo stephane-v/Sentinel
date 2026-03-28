@@ -1,0 +1,28 @@
+services:
+  sentinel:
+    build: .
+    container_name: sentinel
+    volumes:
+      # Répertoire des projets à scanner — LECTURE SEULE
+      - ${PROJECTS_DIR:-/home/user/projects}:/projects:ro
+      # Persistance des rapports
+      - ./reports:/reports
+      # Persistance des bases de données CVE (osv-scanner, grype)
+      - ./data:/data
+    environment:
+      - SCAN_DEPTH=${SCAN_DEPTH:-4}          # Profondeur max de recherche
+      - REPORT_FORMAT=${REPORT_FORMAT:-md}   # md ou json
+      - SEVERITY_MIN=${SEVERITY_MIN:-medium} # low, medium, high, critical
+    # Pas de réseau web, pas de Traefik — c'est un outil CLI
+    # Accès réseau nécessaire uniquement pour mise à jour des bases CVE
+    networks:
+      - default
+    # Sécurité du conteneur scanner lui-même
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
