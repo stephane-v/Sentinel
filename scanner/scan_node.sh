@@ -1,17 +1,17 @@
 #!/bin/bash
 # Arguments: $1=PROJECT_DIR $2=REPORT_BODY
-# NOTE: Variables inherited from sentinel.sh (sourced): SUMMARY_*, set_verdict, log_* functions
+# NOTE: Variables inherited from sentinel.sh (sourced): SUMMARY_*, L_*, set_verdict, log_* functions
 PROJ="$1"
 REPORT="$2"
 PROJ_NAME=$(echo "$PROJ" | sed "s|^/projects/||")
 
 echo "-- Scan Node.js: $PROJ_NAME --"
-echo "### $PROJ_NAME (Node.js)" >> "$REPORT"
+echo "### $PROJ_NAME ($L_NODEJS)" >> "$REPORT"
 
 LOCKFILE="$PROJ/package-lock.json"
 [ -f "$LOCKFILE" ] || return
 
-# --- Paquets compromis connus ---
+# --- Known compromised packages ---
 while IFS= read -r line; do
   [ -z "$line" ] && continue
   [[ "$line" =~ ^# ]] && continue
@@ -23,15 +23,15 @@ while IFS= read -r line; do
     "$LOCKFILE" 2>/dev/null)
 
   if [ -n "$found" ]; then
-    log_critique "[$PROJ_NAME] Paquet npm compromis: $pkg@$ver"
-    echo "- 🚨 **Paquet compromis** : \`$pkg@$ver\`" >> "$REPORT"
+    log_critique "[$PROJ_NAME] Compromised npm package: $pkg@$ver"
+    echo "- 🚨 **$L_COMPROMISED_PKG** : \`$pkg@$ver\`" >> "$REPORT"
     SUMMARY_COMPROMISED_PKG=$((SUMMARY_COMPROMISED_PKG + 1))
   fi
 done < /sentinel/iocs/compromised_npm.txt
 
-# --- Paquets avec install scripts ---
+# --- Packages with install scripts ---
 script_count=$(jq '[.packages | to_entries[] | select(.value.hasInstallScript == true)] | length' "$LOCKFILE" 2>/dev/null || echo "?")
-echo "- Paquets avec install scripts : **$script_count**" >> "$REPORT"
+echo "- $L_INSTALL_SCRIPTS : **$script_count**" >> "$REPORT"
 
 # --- npm audit ---
 if [ -f "$PROJ/package.json" ]; then
@@ -45,11 +45,11 @@ if [ -f "$PROJ/package.json" ]; then
   critical="${critical:-0}"; high="${high:-0}"; moderate="${moderate:-0}"
 
   if [ "$critical" -gt 0 ] 2>/dev/null || [ "$high" -gt 0 ] 2>/dev/null; then
-    log_attention "[$PROJ_NAME] npm audit: $critical critiques, $high élevées, $moderate modérées"
-    echo "- ⚠️ **npm audit** : $critical critiques, $high élevées, $moderate modérées" >> "$REPORT"
+    log_attention "[$PROJ_NAME] npm audit: $critical critical, $high high, $moderate moderate"
+    echo "- ⚠️ **npm audit** : $critical critical, $high high, $moderate moderate" >> "$REPORT"
     SUMMARY_VULN_NPM=$((SUMMARY_VULN_NPM + 1))
   else
-    echo "- ✅ npm audit clean ($moderate modérées)" >> "$REPORT"
+    echo "- ✅ $L_NO_VULN_NPM ($moderate moderate)" >> "$REPORT"
   fi
   cd - > /dev/null
 fi
@@ -60,12 +60,12 @@ osv_output=$(osv-scanner --format json --lockfile "$LOCKFILE" 2>/dev/null || ech
 osv_count=$(echo "$osv_output" | jq '.results | length' 2>/dev/null | tail -1 || true)
 osv_count="${osv_count:-0}"
 if [ "$osv_count" -gt 0 ] 2>/dev/null; then
-  log_attention "[$PROJ_NAME] $osv_count résultats osv-scanner"
-  echo "- ⚠️ **$osv_count vulnérabilités osv-scanner**" >> "$REPORT"
+  log_attention "[$PROJ_NAME] $osv_count osv-scanner results"
+  echo "- ⚠️ **$osv_count osv-scanner vulnerabilities**" >> "$REPORT"
 fi
 
-# --- Grype (second avis, base Anchore) ---
-if [ "${GRYPE_AVAILABLE:-0}" -eq 1 ] && [ "${GRYPE_DATE:-non installee}" != "non installee" ]; then
+# --- Grype (second opinion, Anchore database) ---
+if [ "${GRYPE_AVAILABLE:-0}" -eq 1 ] && [ "${GRYPE_DATE:-not installed}" != "not installed" ]; then
   echo "  grype..."
   grype_output=$(GRYPE_DB_CACHE_DIR="${DATA_DIR:-/data}/grype" grype dir:"$PROJ" --only-fixed -o json -q 2>/dev/null || echo '{"matches":[]}')
 
@@ -87,17 +87,21 @@ if [ "${GRYPE_AVAILABLE:-0}" -eq 1 ] && [ "${GRYPE_DATE:-non installee}" != "non
     grype_high=$(echo "$grype_filtered" | jq '[.[] | select(.vulnerability.severity == "High")] | length' 2>/dev/null | tail -1 || true)
     grype_critical="${grype_critical:-0}"; grype_high="${grype_high:-0}"
 
-    log_attention "[$PROJ_NAME] Grype: $grype_count vulnérabilités ($grype_critical Critical, $grype_high High)"
-    echo "- ⚠️ **Grype : $grype_count vulnérabilités** ($grype_critical Critical, $grype_high High) — *second avis, base Anchore*" >> "$REPORT"
+    log_attention "[$PROJ_NAME] Grype: $grype_count vulns ($grype_critical Critical, $grype_high High)"
+    # shellcheck disable=SC2059
+    printf -v _grype_label "$L_GRYPE_VULNS_DETAIL" "$grype_count"
+    echo "- ⚠️ **$_grype_label** ($grype_critical Critical, $grype_high High) — *$L_SECOND_OPINION*" >> "$REPORT"
 
     echo "$grype_filtered" | jq -r '.[0:10][] |
       "  - `\(.artifact.name)` \(.artifact.version) → \(.vulnerability.id) (\(.vulnerability.severity)) — fix: \(.vulnerability.fix.versions // ["?"] | join(", "))"' 2>/dev/null >> "$REPORT" || true
     if [ "$grype_count" -gt 10 ] 2>/dev/null; then
-      echo "  - *... et $((grype_count - 10)) autres*" >> "$REPORT"
+      # shellcheck disable=SC2059
+      printf -v _more "$L_AND_MORE" "$((grype_count - 10))"
+      echo "  - *$_more*" >> "$REPORT"
     fi
     SUMMARY_VULN_GRYPE=$((SUMMARY_VULN_GRYPE + 1))
   else
-    echo "- ✅ Aucune vulnérabilité Grype" >> "$REPORT"
+    echo "- ✅ $L_NO_VULN_GRYPE" >> "$REPORT"
   fi
 fi
 

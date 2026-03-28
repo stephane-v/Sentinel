@@ -1,32 +1,37 @@
 # Sentinel — Supply Chain Security Scanner
 
-Scanner Docker autonome qui detecte les vulnerabilites connues (CVE), les paquets compromis (supply chain attacks), et les mauvaises pratiques de securite dans vos projets.
+![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
+![Docker](https://img.shields.io/badge/Docker-required-blue.svg)
+![Shell](https://img.shields.io/badge/Written%20in-Bash-orange.svg)
 
-## Fonctionnalites
+Standalone Docker scanner that detects known vulnerabilities (CVE), compromised packages (supply chain attacks), and security misconfigurations in your projects.
 
-- **Detection IOCs** : fichiers malveillants, patterns suspects, caracteres Unicode invisibles (GlassWorm), hashes de payloads connus
-- **Scan Python** : paquets PyPI compromis, dependances non pinnees, CVE via pip-audit, osv-scanner et Grype
-- **Scan Node.js** : paquets npm compromis, install scripts suspects, CVE via npm audit, osv-scanner et Grype
-- **Analyse Docker** : secrets dans Dockerfile (ARG/ENV), fichiers sensibles copies, absence de USER non-root, single-stage builds
-- **Rapport Markdown** genere automatiquement avec code retour (0=clean, 1=alertes, 2=critique)
+## Features
 
-## Securite by design
+- **IOC detection** : malicious files, suspicious patterns, invisible Unicode characters (GlassWorm), known payload hashes
+- **Python scan** : compromised PyPI packages, unpinned dependencies, CVEs via pip-audit, osv-scanner and Grype
+- **Node.js scan** : compromised npm packages, suspicious install scripts, CVEs via npm audit, osv-scanner and Grype
+- **Docker analysis** : secrets in Dockerfile (ARG/ENV), sensitive files copied, missing non-root USER, single-stage builds, build.args secrets detection
+- **4-level verdict system** : CLEAN / INFO / ATTENTION / CRITICAL with smart false positive filtering
+- **Markdown report** generated automatically with summary table and exit code
 
-- Les fichiers `.env` sont **exclus de tous les scans** — leur contenu (secrets, tokens, cles API) n'est jamais lu, journalise, ni envoye a des outils externes
-- Le volume des projets est monte en **lecture seule** (`:ro`)
-- Le conteneur tourne avec un **utilisateur non-root** (`sentinel`)
-- Image Docker **multi-stage** (3 stages) pour reduire la surface d'attaque
-- Conteneur en `read_only: true` avec `no-new-privileges` et `cap_drop: ALL`
-- Tmpfs pour `/tmp` et `/var/tmp`
+## Security by design
 
-## Outils embarques
+- `.env` files are **excluded from all scans** — their content (secrets, tokens, API keys) is never read, logged, or sent to external tools
+- Project volume is mounted **read-only** (`:ro`)
+- Container runs as a **non-root user** (`sentinel`)
+- **Multi-stage Docker image** (3 stages) to reduce attack surface
+- Container runs with `read_only: true`, `no-new-privileges` and `cap_drop: ALL`
+- Tmpfs for `/tmp` and `/var/tmp`
 
-| Outil | Role |
-|-------|------|
-| [pip-audit](https://github.com/pypa/pip-audit) | Vulnerabilites Python (base PyPI/OSV) |
-| [osv-scanner](https://github.com/google/osv-scanner) | Multi-ecosysteme (base Google OSV) |
-| [grype](https://github.com/anchore/grype) | Scanner de vulnerabilites (base Anchore) |
-| npm audit | Vulnerabilites Node.js integrees |
+## Embedded tools
+
+| Tool | Role |
+|------|------|
+| [pip-audit](https://github.com/pypa/pip-audit) | Python vulnerabilities (PyPI/OSV database) |
+| [osv-scanner](https://github.com/google/osv-scanner) | Multi-ecosystem (Google OSV database) |
+| [grype](https://github.com/anchore/grype) | Vulnerability scanner (Anchore database) |
+| npm audit | Built-in Node.js vulnerability scanner |
 
 ## Installation
 
@@ -34,129 +39,165 @@ Scanner Docker autonome qui detecte les vulnerabilites connues (CVE), les paquet
 git clone <repo-url> sentinel
 cd sentinel
 cp .env.example .env
-# Editer .env avec vos chemins et preferences
+# Edit .env with your paths and preferences
 docker compose build
 ```
 
 ## Configuration
 
-Copier `.env.example` en `.env` et adapter :
+Copy `.env.example` to `.env` and customize:
 
 ```bash
 cp .env.example .env
 ```
 
 ```ini
-# Repertoire des projets a scanner (chemin absolu)
+# Directory containing projects to scan (absolute path)
 PROJECTS_DIR=/home/user/projects
 
-# Repertoires a exclure (separes par des virgules)
+# Directories to exclude (comma-separated)
 EXCLUDE_DIRS=sentinel
 
-# Seuil minimum : low, medium, high, critical
+# Minimum severity threshold: low, medium, high, critical
 SEVERITY_MIN=medium
 
-# UID/GID pour les permissions des rapports
+# Report language: en or fr
+REPORT_LANG=en
+
+# UID/GID for report file permissions
 UID=1000
 GID=1000
 ```
 
-Le fichier `.env` est ignore par git (contient des chemins locaux).
+The `.env` file is git-ignored (contains local paths).
 
-## Utilisation
+## Usage
 
-### Scanner tous les projets
+### Scan all projects
 
 ```bash
 docker compose run --rm sentinel
 ```
 
-### Scanner un sous-repertoire specifique
+### Scan a specific subdirectory
 
 ```bash
-docker compose run --rm sentinel scan /projects/mon-projet
+docker compose run --rm sentinel scan /projects/my-project
 ```
 
-### Scanner avec seuil critique uniquement
+### Scan with critical severity only
 
 ```bash
 SEVERITY_MIN=critical docker compose run --rm sentinel
 ```
 
-### Exclure des repertoires du scan
+### Exclude directories from scan
 
 ```bash
 EXCLUDE_DIRS=sentinel,old-project,archive docker compose run --rm sentinel
 ```
 
-### Mettre a jour les bases CVE
+### Update CVE databases
 
 ```bash
 docker compose run --rm sentinel update
 ```
 
-Les variables passees en ligne de commande surchargent celles du `.env`.
+### Generate report in French
 
-## Variables d'environnement
+```bash
+REPORT_LANG=fr docker compose run --rm sentinel
+```
 
-| Variable | Defaut | Description |
-|----------|--------|-------------|
-| `PROJECTS_DIR` | `/home/user/projects` | Repertoire des projets a scanner |
-| `EXCLUDE_DIRS` | `sentinel` | Repertoires a exclure (separes par des virgules) |
-| `SCAN_DEPTH` | `4` | Profondeur max de recherche de fichiers |
-| `SEVERITY_MIN` | `medium` | Seuil minimum : `low`, `medium`, `high`, `critical` |
-| `REPORT_FORMAT` | `md` | Format du rapport : `md` ou `json` |
-| `UID` | `1000` | UID de l'utilisateur dans le conteneur |
-| `GID` | `1000` | GID de l'utilisateur dans le conteneur |
+Command-line variables override `.env` values.
 
-## Codes de retour
+## Example output
 
-| Code | Signification |
-|------|--------------|
-| `0` | Aucune vulnerabilite critique ni IOC detecte |
-| `1` | Des vulnerabilites ou mauvaises pratiques detectees |
-| `2` | IOCs ou paquets compromis detectes — action immediate requise |
+```
+Verdict: ✅ CLEAN — No issues detected.
 
-## Rapports
+| Category                         | Result                              |
+|----------------------------------|-------------------------------------|
+| Confirmed IOCs (files/hashes)    | ✅ 0 found                          |
+| Known compromised packages       | ✅ 0 found                          |
+| Malicious hashes                 | ✅ 0 found                          |
+| pip-audit vulnerabilities        | ✅ 0 critical                       |
+| npm audit vulnerabilities        | ✅ 0 critical                       |
+| Grype vulnerabilities            | ✅ 0 found                          |
+| Suspicious Unicode (source code) | ✅ 0 found                          |
+| Suspicious patterns in code      | ✅ 0 found                          |
+| Secrets in build.args            | ✅ 0 found                          |
+| Unpinned dependencies            | 💡 ~45 across 8 projects            |
+| Dockerfiles without USER         | 💡 3 file(s)                        |
+| Single-stage builds              | 💡 2 file(s)                        |
+| Filtered false positives         | ⚪ 4 file(s) (binary/i18n/IDE)      |
+```
 
-Les rapports sont generes dans `./reports/` avec le format `sentinel-YYYY-MM-DD_HHMMSS.md`.
+## Environment variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PROJECTS_DIR` | `/home/user/projects` | Directory containing projects to scan |
+| `EXCLUDE_DIRS` | `sentinel` | Directories to exclude (comma-separated) |
+| `SCAN_DEPTH` | `4` | Maximum search depth in directory tree |
+| `SEVERITY_MIN` | `medium` | Minimum severity threshold: `low`, `medium`, `high`, `critical` |
+| `REPORT_FORMAT` | `md` | Report format: `md` or `json` |
+| `REPORT_LANG` | `en` | Report language: `en` or `fr` |
+| `UID` | `1000` | Container user UID |
+| `GID` | `1000` | Container user GID |
+
+## Exit codes
+
+| Code | Meaning |
+|------|---------|
+| `0` | CLEAN or INFO — no critical issue or IOC detected |
+| `1` | ATTENTION — suspicious elements require manual verification |
+| `2` | CRITICAL — confirmed IOCs or compromised packages detected |
+
+## Reports
+
+Reports are generated in `./reports/` with the format `sentinel-YYYY-MM-DD_HHMMSS.md`.
 
 ## Architecture
 
 ```
 sentinel/
-├── .env.example                # Configuration par defaut (a copier en .env)
+├── .env.example                # Default configuration (copy to .env)
 ├── .gitignore
-├── docker-compose.yml          # Lance le scanner
-├── Dockerfile                  # Image multi-stage (3 stages)
+├── docker-compose.yml          # Runs the scanner
+├── Dockerfile                  # Multi-stage image (3 stages)
+├── LICENSE                     # MIT License
 ├── scanner/
-│   ├── sentinel.sh             # Script principal (orchestrateur)
-│   ├── scan_python.sh          # Scan pip/PyPI (pip-audit + IOCs)
-│   ├── scan_node.sh            # Scan npm (npm audit + IOCs)
-│   ├── scan_docker.sh          # Analyse Dockerfiles + docker-compose
-│   ├── scan_iocs.sh            # Recherche IOCs supply chain connus
+│   ├── sentinel.sh             # Main script (orchestrator)
+│   ├── scan_python.sh          # Python scan (pip-audit + IOCs)
+│   ├── scan_node.sh            # Node.js scan (npm audit + IOCs)
+│   ├── scan_docker.sh          # Dockerfile + docker-compose analysis
+│   ├── scan_iocs.sh            # IOC search (supply chain indicators)
+│   ├── i18n/
+│   │   ├── en.sh               # English translations (default)
+│   │   └── fr.sh               # French translations
 │   ├── iocs/
-│   │   ├── compromised_npm.txt     # Paquets npm compromis
-│   │   ├── compromised_pypi.txt    # Paquets PyPI compromis
-│   │   ├── malicious_files.txt     # Noms de fichiers malveillants
-│   │   ├── malicious_patterns.txt  # Patterns grep suspects
-│   │   └── malicious_hashes.txt    # SHA-256 de payloads connus
+│   │   ├── compromised_npm.txt     # Known compromised npm packages
+│   │   ├── compromised_pypi.txt    # Known compromised PyPI packages
+│   │   ├── malicious_files.txt     # Known malicious filenames
+│   │   ├── malicious_patterns.txt  # Grep patterns for malicious code
+│   │   └── malicious_hashes.txt    # SHA-256 hashes of known payloads
 │   └── templates/
-│       └── report.md.tpl       # Template du rapport
-├── reports/                    # Rapports generes (persiste via volume)
-├── data/                       # Bases CVE mises a jour (persiste via volume)
+│       └── report.md.tpl       # Report template
+├── reports/                    # Generated reports (persisted via volume)
+├── data/                       # CVE databases (persisted via volume)
 └── README.md
 ```
 
-## Bases IOC incluses
+## Included IOC databases
 
-Les listes IOC couvrent les attaques supply chain connues :
-- **Shai-Hulud** v1/v2 (npm, sept 2025)
-- **LiteLLM TeamPCP** (PyPI, mars 2026)
-- **Cline CLI** compromis (npm, fev 2026)
-- Typosquatting PyPI (termncolor, colorinal, etc.)
-- Patterns d'exfiltration (webhook.site, domaines C2)
-- Caracteres Unicode invisibles (technique GlassWorm)
+The IOC lists cover known supply chain attacks:
+- **Shai-Hulud** v1/v2 (npm, Sept 2025)
+- **LiteLLM TeamPCP** (PyPI, March 2026)
+- **Cline CLI** compromised (npm, Feb 2026)
+- PyPI typosquatting (termncolor, colorinal, etc.)
+- Exfiltration patterns (webhook.site, C2 domains)
+- Invisible Unicode characters (GlassWorm technique)
 
 ## Alternatives and positioning
 
@@ -191,7 +232,7 @@ For comprehensive protection, consider combining:
 
 | Characteristic | Sentinel | Socket.dev | OSV-Scanner | Snyk | npm/pip audit | Safe Chain | PMG | shai-hulud-scanner |
 |---|---|---|---|---|---|---|---|---|
-| License | Open source | Proprietary | Apache 2.0 | Proprietary | MIT / built-in | Open source | Open source | MIT |
+| License | MIT | Proprietary | Apache 2.0 | Proprietary | MIT / built-in | Open source | Open source | MIT |
 | Runtime dependencies | Docker | Node.js | Go binary | Node.js | Built-in | Node.js | Go binary | Python |
 | Ecosystems | npm + pip | 10+ | 11+ | 20+ | 1 each | npm + pip | npm + pip | npm only |
 | Works offline | ⚠️ IOCs yes, CVE needs db update | ❌ | ✅ | ❌ | ⚠️ | ❌ | ❌ | ✅ |
@@ -219,6 +260,20 @@ Features not yet implemented:
 | SafeDep PMG | https://github.com/safedep/pmg |
 | shai-hulud-scanner | https://github.com/Drasrax/npm-shai-hulud-scanner |
 
-## Licence
+## Contributing
 
-Usage interne — outil de securite defensive.
+Issues and pull requests welcome.
+
+The easiest way to contribute is to update the IOC lists in `scanner/iocs/`:
+- `compromised_npm.txt` — known compromised npm packages
+- `compromised_pypi.txt` — known compromised PyPI packages
+- `malicious_files.txt` — filenames dropped by known malware
+- `malicious_patterns.txt` — grep patterns for malicious code
+- `malicious_hashes.txt` — SHA-256 hashes of known payloads
+
+When a new supply chain attack is disclosed, adding its indicators here
+helps the entire community detect it.
+
+## License
+
+MIT License — see [LICENSE](LICENSE).

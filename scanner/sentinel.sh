@@ -12,7 +12,17 @@ SEVERITY_MIN="${SEVERITY_MIN:-medium}"
 EXCLUDE_DIRS="${EXCLUDE_DIRS:-sentinel}"
 REPORT_FILE="$REPORTS_DIR/sentinel-$(date +%Y-%m-%d_%H%M%S).md"
 
-# Construire les options find/grep d'exclusion a partir de EXCLUDE_DIRS
+# === Load i18n ===
+REPORT_LANG="${REPORT_LANG:-en}"
+I18N_FILE="$(dirname "$0")/i18n/${REPORT_LANG}.sh"
+if [ -f "$I18N_FILE" ]; then
+  source "$I18N_FILE"
+else
+  echo "Warning: language '$REPORT_LANG' not found, falling back to English"
+  source "$(dirname "$0")/i18n/en.sh"
+fi
+
+# Build find/grep exclusion options from EXCLUDE_DIRS
 FIND_PRUNE=""
 GREP_EXCLUDE_DIRS=""
 if [ -n "$EXCLUDE_DIRS" ]; then
@@ -26,12 +36,11 @@ if [ -n "$EXCLUDE_DIRS" ]; then
 fi
 
 # === Verdict system (4 levels) ===
-# CLEAN < INFO < ATTENTION < CRITIQUE
 VERDICT="CLEAN"
 set_verdict() {
   local new="$1"
   case "$VERDICT" in
-    CRITIQUE) return ;;  # already max
+    CRITIQUE) return ;;
     ATTENTION) [ "$new" = "CRITIQUE" ] && VERDICT="CRITIQUE" ;;
     INFO) case "$new" in ATTENTION|CRITIQUE) VERDICT="$new" ;; esac ;;
     CLEAN) VERDICT="$new" ;;
@@ -82,7 +91,7 @@ _severity_rank() {
 }
 SEVERITY_MIN_RANK=$(_severity_rank "$SEVERITY_MIN")
 
-# Couleurs
+# Colors (CLI output only — not in reports)
 RED='\033[0;31m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
@@ -90,32 +99,29 @@ GREEN='\033[0;32m'
 GRAY='\033[0;90m'
 NC='\033[0m'
 
-# === Fonctions utilitaires ===
-log_critique() { echo -e "${RED}[CRITIQUE]${NC} $*" >&2; set_verdict CRITIQUE; }
+# === Utility functions ===
+log_critique() { echo -e "${RED}[CRITICAL]${NC} $*" >&2; set_verdict CRITIQUE; }
 log_attention() { echo -e "${YELLOW}[ATTENTION]${NC} $*" >&2; set_verdict ATTENTION; }
 log_info()     { echo -e "${BLUE}[INFO]${NC} $*"; set_verdict INFO; }
 log_ok()       { echo -e "${GREEN}[OK]${NC} $*"; }
-log_filtered() { echo -e "${GRAY}[FILTRE]${NC} $*"; }
+log_filtered() { echo -e "${GRAY}[FILTERED]${NC} $*"; }
 
-# === Commandes ===
+# === Commands ===
 case "${1:-scan}" in
   update)
-    echo "=== Mise à jour des bases de vulnérabilités ==="
+    echo "=== Updating vulnerability databases ==="
 
-    # Mise à jour base grype
     echo "-- Grype --"
     GRYPE_DB_CACHE_DIR="$DATA_DIR/grype" grype db update 2>&1
 
-    # Mise à jour base osv-scanner
     echo "-- OSV Scanner --"
     osv-scanner --experimental-local-db --experimental-download-offline-databases 2>&1 || true
 
-    # Mise à jour des listes IOC custom
-    echo "-- IOCs custom --"
-    echo "Les fichiers IOC doivent être mis à jour manuellement ou via un script dédié."
-    echo "Dernière mise à jour IOCs : $(stat -c '%y' /sentinel/iocs/compromised_npm.txt 2>/dev/null || echo 'inconnue')"
+    echo "-- Custom IOCs --"
+    echo "IOC files must be updated manually or via a dedicated script."
+    echo "Last IOC update: $(stat -c '%y' /sentinel/iocs/compromised_npm.txt 2>/dev/null || echo 'unknown')"
 
-    echo "=== Bases mises à jour ==="
+    echo "=== Databases updated ==="
     exit 0
     ;;
 
@@ -123,41 +129,41 @@ case "${1:-scan}" in
     echo "============================================"
     echo "  SENTINEL — Supply Chain Security Scanner"
     echo "  $(date '+%Y-%m-%d %H:%M:%S')"
-    echo "  Cible : $PROJECTS_DIR"
+    echo "  Target: $PROJECTS_DIR"
     echo "============================================"
     echo ""
 
-    # Vérifier la présence des bases de vulnérabilités
+    # Check vulnerability databases
     GRYPE_DB="$DATA_DIR/grype"
     if [ ! -d "$GRYPE_DB" ] || [ -z "$(ls -A "$GRYPE_DB" 2>/dev/null)" ]; then
-      echo -e "${YELLOW}[ALERTE]${NC} Base Grype absente. Lancez d'abord :"
+      echo -e "${YELLOW}[WARNING]${NC} Grype DB missing. Run first:"
       echo "  docker compose run --rm sentinel update"
       echo ""
-      GRYPE_DATE="non installee"
+      GRYPE_DATE="not installed"
     else
       GRYPE_DATE=$(find "$GRYPE_DB" -type f -name "*.db" -printf '%TY-%Tm-%Td %TH:%TM\n' 2>/dev/null | head -1 || true)
       [ -z "$GRYPE_DATE" ] && GRYPE_DATE=$(stat -c '%y' "$GRYPE_DB" 2>/dev/null | cut -d'.' -f1 || echo "?")
-      echo "  Base Grype : $GRYPE_DATE"
+      echo "  Grype DB: $GRYPE_DATE"
     fi
 
-    # Vérifier que le répertoire est monté
+    # Check project directory
     if [ ! -d "$PROJECTS_DIR" ]; then
-      echo "ERREUR: $PROJECTS_DIR n'existe pas. As-tu monté le volume ?"
+      echo "ERROR: $PROJECTS_DIR does not exist. Did you mount the volume?"
       exit 1
     fi
 
-    # Vérifier que le répertoire de rapports est accessible en écriture
+    # Check reports directory is writable
     mkdir -p "$REPORTS_DIR" 2>/dev/null || true
     if [ ! -w "$REPORTS_DIR" ]; then
-      echo "ERREUR: $REPORTS_DIR n'est pas accessible en écriture."
-      echo "Vérifiez les permissions du répertoire ./reports sur l'hôte :"
+      echo "ERROR: $REPORTS_DIR is not writable."
+      echo "Fix permissions on the host:"
       echo "  mkdir -p reports && chmod 777 reports"
-      echo "  # ou lancez avec : UID=\$(id -u) GID=\$(id -g) docker compose run --rm sentinel"
+      echo "  # or run with: UID=\$(id -u) GID=\$(id -g) docker compose run --rm sentinel"
       exit 1
     fi
 
-    # === Phase 1 : Découverte des projets ===
-    echo "=== Phase 1 : Découverte des projets ==="
+    # === Phase 1: Project discovery ===
+    echo "=== Phase 1: Project discovery ==="
 
     PYTHON_PROJECTS=()
     NODE_PROJECTS=()
@@ -179,92 +185,89 @@ case "${1:-scan}" in
       $(for _d in $(echo "$EXCLUDE_DIRS" | tr ',' ' '); do echo "-not -path */$_d/*"; done) \
       2>/dev/null | sort -u)
 
-    echo "Projets Python trouvés : ${#PYTHON_PROJECTS[@]}"
-    echo "Projets Node.js trouvés : ${#NODE_PROJECTS[@]}"
+    echo "Python projects found: ${#PYTHON_PROJECTS[@]}"
+    echo "Node.js projects found: ${#NODE_PROJECTS[@]}"
 
-    # === Phase 2 : Scan IOCs ===
+    # === Phase 2: IOC scan ===
     echo ""
-    echo "=== Phase 2 : Recherche IOCs ==="
+    echo "=== Phase 2: IOC search ==="
     source /sentinel/scan_iocs.sh "$PROJECTS_DIR" "$REPORT_BODY"
 
-    # === Phase 3 : Scan Python ===
+    # === Phase 3: Python scan ===
     echo ""
-    echo "=== Phase 3 : Scan projets Python ==="
+    echo "=== Phase 3: Python projects ==="
     for proj in "${PYTHON_PROJECTS[@]}"; do
       source /sentinel/scan_python.sh "$proj" "$REPORT_BODY"
     done
 
-    # === Phase 4 : Scan Node.js ===
+    # === Phase 4: Node.js scan ===
     echo ""
-    echo "=== Phase 4 : Scan projets Node.js ==="
+    echo "=== Phase 4: Node.js projects ==="
     for proj in "${NODE_PROJECTS[@]}"; do
       source /sentinel/scan_node.sh "$proj" "$REPORT_BODY"
     done
 
-    # === Phase 5 : Scan Docker ===
+    # === Phase 5: Docker scan ===
     echo ""
-    echo "=== Phase 5 : Analyse sécurité Docker ==="
+    echo "=== Phase 5: Docker security ==="
     source /sentinel/scan_docker.sh "$PROJECTS_DIR" "$REPORT_BODY"
 
-    # === Assembler le rapport final ===
-    # Verdict label
+    # === Assemble final report ===
     case "$VERDICT" in
-      CRITIQUE)  VERDICT_LABEL="🚨 **CRITIQUE** — IOCs confirmés ou paquets compromis détectés. Action immédiate requise." ;;
-      ATTENTION) VERDICT_LABEL="⚠️ **ATTENTION** — Éléments suspects nécessitant vérification manuelle." ;;
-      INFO)      VERDICT_LABEL="💡 **INFO** — Points d'attention détectés, aucune menace confirmée." ;;
-      CLEAN)     VERDICT_LABEL="✅ **CLEAN** — Aucun problème détecté." ;;
+      CRITIQUE)  VERDICT_LABEL="🚨 **$L_VERDICT_CRITICAL**" ;;
+      ATTENTION) VERDICT_LABEL="⚠️ **$L_VERDICT_ATTENTION**" ;;
+      INFO)      VERDICT_LABEL="💡 **$L_VERDICT_INFO**" ;;
+      CLEAN)     VERDICT_LABEL="✅ **$L_VERDICT_CLEAN**" ;;
     esac
 
-    # Write final report
     cat > "$REPORT_FILE" <<HEADER
-# Rapport Sentinel — Audit Supply Chain
-**Date** : $(date '+%Y-%m-%d %H:%M:%S')
-**Cible** : $PROJECTS_DIR
-**Base Grype** : ${GRYPE_DATE}
-**Projets** : ${#PYTHON_PROJECTS[@]} Python, ${#NODE_PROJECTS[@]} Node.js
+# $L_REPORT_TITLE
+**$L_DATE** : $(date '+%Y-%m-%d %H:%M:%S')
+**$L_TARGET** : $PROJECTS_DIR
+**$L_GRYPE_DB** : ${GRYPE_DATE}
+**$L_PROJECTS** : ${#PYTHON_PROJECTS[@]} $L_PYTHON, ${#NODE_PROJECTS[@]} $L_NODEJS
 
 ---
 
-## Verdict : $VERDICT_LABEL
+## $L_VERDICT : $VERDICT_LABEL
 
-| Catégorie | Résultat |
+| $L_CATEGORY | $L_RESULT |
 |-----------|----------|
-| IOCs confirmés (fichiers/hashes) | $([ "$SUMMARY_IOC_CONFIRMED" -gt 0 ] && echo "🚨 $SUMMARY_IOC_CONFIRMED trouvé(s)" || echo "✅ 0 trouvé") |
-| Paquets compromis connus | $([ "$SUMMARY_COMPROMISED_PKG" -gt 0 ] && echo "🚨 $SUMMARY_COMPROMISED_PKG trouvé(s)" || echo "✅ 0 trouvé") |
-| Hashes malveillants | $([ "$SUMMARY_HASH_MATCH" -gt 0 ] && echo "🚨 $SUMMARY_HASH_MATCH trouvé(s)" || echo "✅ 0 trouvé") |
-| Vulnérabilités pip-audit | $([ "$SUMMARY_VULN_PIP" -gt 0 ] && echo "⚠️ $SUMMARY_VULN_PIP projet(s) affecté(s)" || echo "✅ 0 critique") |
-| Vulnérabilités npm audit | $([ "$SUMMARY_VULN_NPM" -gt 0 ] && echo "⚠️ $SUMMARY_VULN_NPM projet(s) affecté(s)" || echo "✅ 0 critique") |
-| Vulnérabilités Grype | $([ "$SUMMARY_VULN_GRYPE" -gt 0 ] && echo "⚠️ $SUMMARY_VULN_GRYPE projet(s) affecté(s)" || echo "✅ 0 trouvé") |
-| Unicode suspects (code source) | $([ "$SUMMARY_UNICODE_SOURCE" -gt 0 ] && echo "⚠️ $SUMMARY_UNICODE_SOURCE fichier(s) à vérifier" || echo "✅ 0 trouvé") |
-| Patterns suspects dans le code | $([ "$SUMMARY_PATTERN_SUSPECT" -gt 0 ] && echo "⚠️ $SUMMARY_PATTERN_SUSPECT pattern(s)" || echo "✅ 0 trouvé") |
-| Secrets dans build.args | $([ "$SUMMARY_BUILD_ARGS_SECRET" -gt 0 ] && echo "⚠️ $SUMMARY_BUILD_ARGS_SECRET fichier(s)" || echo "✅ 0 trouvé") |
-| Dépendances non pinnées | $([ "$SUMMARY_UNPINNED" -gt 0 ] && echo "💡 ~$SUMMARY_UNPINNED sur ${#PYTHON_PROJECTS[@]} projets" || echo "✅ toutes pinnées") |
-| Dockerfiles sans USER | $([ "$SUMMARY_NO_USER" -gt 0 ] && echo "💡 $SUMMARY_NO_USER fichier(s)" || echo "✅ tous avec USER") |
-| Single-stage builds | $([ "$SUMMARY_SINGLE_STAGE" -gt 0 ] && echo "💡 $SUMMARY_SINGLE_STAGE fichier(s)" || echo "✅ tous multi-stage") |
-| Faux positifs filtrés | $([ "$COUNT_FILTERED" -gt 0 ] && echo "⚪ $COUNT_FILTERED fichier(s) (binaires/i18n/éditeur)" || echo "⚪ 0") |
+| $L_CONFIRMED_IOCS | $([ "$SUMMARY_IOC_CONFIRMED" -gt 0 ] && echo "🚨 $SUMMARY_IOC_CONFIRMED $L_FOUND" || echo "✅ 0 $L_FOUND") |
+| $L_KNOWN_COMPROMISED | $([ "$SUMMARY_COMPROMISED_PKG" -gt 0 ] && echo "🚨 $SUMMARY_COMPROMISED_PKG $L_FOUND" || echo "✅ 0 $L_FOUND") |
+| $L_MALICIOUS_HASHES | $([ "$SUMMARY_HASH_MATCH" -gt 0 ] && echo "🚨 $SUMMARY_HASH_MATCH $L_FOUND" || echo "✅ 0 $L_FOUND") |
+| $L_PIP_AUDIT_VULNS | $([ "$SUMMARY_VULN_PIP" -gt 0 ] && echo "⚠️ $SUMMARY_VULN_PIP $L_PROJECTS_AFFECTED" || echo "✅ 0 $L_CRITICAL") |
+| $L_NPM_AUDIT_VULNS | $([ "$SUMMARY_VULN_NPM" -gt 0 ] && echo "⚠️ $SUMMARY_VULN_NPM $L_PROJECTS_AFFECTED" || echo "✅ 0 $L_CRITICAL") |
+| $L_GRYPE_VULNS | $([ "$SUMMARY_VULN_GRYPE" -gt 0 ] && echo "⚠️ $SUMMARY_VULN_GRYPE $L_PROJECTS_AFFECTED" || echo "✅ 0 $L_FOUND") |
+| $L_UNICODE_SUSPECT | $([ "$SUMMARY_UNICODE_SOURCE" -gt 0 ] && echo "⚠️ $SUMMARY_UNICODE_SOURCE $L_FILES_TO_VERIFY" || echo "✅ 0 $L_FOUND") |
+| $L_PATTERNS_SUSPECT | $([ "$SUMMARY_PATTERN_SUSPECT" -gt 0 ] && echo "⚠️ $SUMMARY_PATTERN_SUSPECT $L_PATTERN_S" || echo "✅ 0 $L_FOUND") |
+| $L_SECRETS_BUILD | $([ "$SUMMARY_BUILD_ARGS_SECRET" -gt 0 ] && echo "⚠️ $SUMMARY_BUILD_ARGS_SECRET $L_FILES" || echo "✅ 0 $L_FOUND") |
+| $L_UNPINNED_DEPS | $([ "$SUMMARY_UNPINNED" -gt 0 ] && echo "💡 ~$SUMMARY_UNPINNED $L_ACROSS ${#PYTHON_PROJECTS[@]} $L_PROJECTS" || echo "✅ $L_ALL_PINNED") |
+| $L_NO_USER | $([ "$SUMMARY_NO_USER" -gt 0 ] && echo "💡 $SUMMARY_NO_USER $L_FILES" || echo "✅ $L_ALL_WITH_USER") |
+| $L_SINGLE_STAGE | $([ "$SUMMARY_SINGLE_STAGE" -gt 0 ] && echo "💡 $SUMMARY_SINGLE_STAGE $L_FILES" || echo "✅ $L_ALL_MULTISTAGE") |
+| $L_FALSE_POSITIVES | $([ "$COUNT_FILTERED" -gt 0 ] && echo "⚪ $COUNT_FILTERED $L_FILES (binary/i18n/IDE)" || echo "⚪ 0") |
 
 ---
 
 HEADER
 
-    # Append body (detailed findings)
+    # Append body
     cat "$REPORT_BODY" >> "$REPORT_FILE"
 
-    # Append filtered false positives section
+    # Append filtered false positives
     if [ "$COUNT_FILTERED" -gt 0 ]; then
-      cat >> "$REPORT_FILE" <<'FILTERED_HEADER'
+      cat >> "$REPORT_FILE" <<FILTERED_HEADER
 
 ---
 
-## Faux positifs filtrés
+## $L_FP_SECTION
 
-Ces fichiers ont déclenché une règle de détection mais ont été identifiés comme
-des faux positifs par les filtres Sentinel. Listés ici pour transparence.
+$L_FP_INTRO
 
 <details>
-<summary>Voir les fichiers filtrés</summary>
+<summary>$L_FP_SHOW</summary>
 
-| Fichier | Règle | Raison du filtrage |
+| $L_FP_FILE | $L_FP_RULE | $L_FP_REASON |
 |---------|-------|--------------------|
 FILTERED_HEADER
       cat "$REPORT_FILTERED" >> "$REPORT_FILE"
@@ -272,10 +275,10 @@ FILTERED_HEADER
       echo "</details>" >> "$REPORT_FILE"
     fi
 
-    # Cleanup temp files
+    # Cleanup
     rm -f "$REPORT_BODY" "$REPORT_FILTERED"
 
-    # Exit code mapping
+    # Exit code
     case "$VERDICT" in
       CLEAN)     EXIT_CODE=0 ;;
       INFO)      EXIT_CODE=0 ;;
@@ -285,16 +288,16 @@ FILTERED_HEADER
 
     echo ""
     echo "============================================"
-    echo "  Verdict : $VERDICT"
-    echo "  Rapport : $REPORT_FILE"
-    echo "  Code retour : $EXIT_CODE"
+    echo "  Verdict: $VERDICT"
+    echo "  Report: $REPORT_FILE"
+    echo "  Exit code: $EXIT_CODE"
     echo "============================================"
 
     exit $EXIT_CODE
     ;;
 
   *)
-    echo "Usage: sentinel.sh [scan|update] [répertoire]"
+    echo "Usage: sentinel.sh [scan|update] [directory]"
     exit 1
     ;;
 esac

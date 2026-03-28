@@ -1,14 +1,14 @@
 #!/bin/bash
 # Arguments: $1=PROJECT_DIR $2=REPORT_BODY
-# NOTE: Variables inherited from sentinel.sh (sourced): SUMMARY_*, set_verdict, log_* functions
+# NOTE: Variables inherited from sentinel.sh (sourced): SUMMARY_*, L_*, set_verdict, log_* functions
 PROJ="$1"
 REPORT="$2"
 PROJ_NAME=$(echo "$PROJ" | sed "s|^/projects/||")
 
 echo "-- Scan Python: $PROJ_NAME --"
-echo "### $PROJ_NAME (Python)" >> "$REPORT"
+echo "### $PROJ_NAME ($L_PYTHON)" >> "$REPORT"
 
-# --- Paquets compromis connus ---
+# --- Known compromised packages ---
 while IFS= read -r line; do
   [ -z "$line" ] && continue
   [[ "$line" =~ ^# ]] && continue
@@ -18,34 +18,34 @@ while IFS= read -r line; do
   for req in "$PROJ"/requirements*.txt; do
     [ -f "$req" ] || continue
     if grep -qi "${pkg}.*${ver}" "$req" 2>/dev/null; then
-      log_critique "[$PROJ_NAME] Paquet PyPI compromis: $pkg@$ver dans $(basename "$req")"
-      echo "- 🚨 **Paquet compromis** : \`$pkg@$ver\` dans \`$(basename "$req")\`" >> "$REPORT"
+      log_critique "[$PROJ_NAME] Compromised PyPI package: $pkg@$ver in $(basename "$req")"
+      echo "- 🚨 **$L_COMPROMISED_PKG** : \`$pkg@$ver\` in \`$(basename "$req")\`" >> "$REPORT"
       SUMMARY_COMPROMISED_PKG=$((SUMMARY_COMPROMISED_PKG + 1))
     fi
   done
 
   if [ -f "$PROJ/pyproject.toml" ]; then
     if grep -qi "${pkg}.*${ver}" "$PROJ/pyproject.toml" 2>/dev/null; then
-      log_critique "[$PROJ_NAME] Paquet PyPI compromis: $pkg@$ver dans pyproject.toml"
-      echo "- 🚨 **Paquet compromis** : \`$pkg@$ver\` dans \`pyproject.toml\`" >> "$REPORT"
+      log_critique "[$PROJ_NAME] Compromised PyPI package: $pkg@$ver in pyproject.toml"
+      echo "- 🚨 **$L_COMPROMISED_PKG** : \`$pkg@$ver\` in \`pyproject.toml\`" >> "$REPORT"
       SUMMARY_COMPROMISED_PKG=$((SUMMARY_COMPROMISED_PKG + 1))
     fi
   fi
 done < /sentinel/iocs/compromised_pypi.txt
 
-# --- Versions non pinnées ---
+# --- Unpinned versions ---
 for req in "$PROJ"/requirements*.txt; do
   [ -f "$req" ] || continue
   unpinned=$(grep -v -E "^#|^$|^-|==" "$req" 2>/dev/null | grep -c -E "[>=~]" 2>/dev/null || true)
   unpinned="${unpinned:-0}"
   unpinned=$(echo "$unpinned" | tail -1)
   if [ "$unpinned" -gt 0 ]; then
-    log_info "[$PROJ_NAME] $unpinned dépendances non pinnées dans $(basename "$req")"
-    echo "- 💡 **$unpinned dépendances non pinnées** dans \`$(basename "$req")\`" >> "$REPORT"
-    echo "  - *Risque : un \`docker build\` futur pourrait tirer une version compromise*" >> "$REPORT"
-    echo "  - *Action : \`pip freeze > requirements.txt\` dans le conteneur pour pinner*" >> "$REPORT"
+    log_info "[$PROJ_NAME] $unpinned unpinned deps in $(basename "$req")"
+    echo "- 💡 **$unpinned $L_UNPINNED_IN** \`$(basename "$req")\`" >> "$REPORT"
+    echo "  - *$L_UNPINNED_RISK*" >> "$REPORT"
+    echo "  - *$L_UNPINNED_ACTION*" >> "$REPORT"
     echo "  <details>" >> "$REPORT"
-    echo "  <summary>Voir les dépendances non pinnées</summary>" >> "$REPORT"
+    echo "  <summary>$L_SHOW_UNPINNED</summary>" >> "$REPORT"
     echo "" >> "$REPORT"
     grep -v -E "^#|^$|^-|==" "$req" 2>/dev/null | grep -E "[>=~]" 2>/dev/null | while read -r dep; do
       echo "  - \`$dep\`" >> "$REPORT"
@@ -56,24 +56,24 @@ for req in "$PROJ"/requirements*.txt; do
   fi
 done
 
-# --- pip-audit (CVE connues) ---
+# --- pip-audit (known CVEs) ---
 for req in "$PROJ"/requirements*.txt; do
   [ -f "$req" ] || continue
-  echo "  pip-audit sur $(basename "$req")..."
+  echo "  pip-audit on $(basename "$req")..."
   audit_output=$(pip-audit -r "$req" --format json 2>/dev/null || echo '[]')
 
   vuln_count=$(echo "$audit_output" | jq 'if type == "array" then [.[] | select(.vulns | length > 0)] | length else 0 end' 2>/dev/null | tail -1 || true)
   vuln_count="${vuln_count:-0}"
 
   if [ "$vuln_count" -gt 0 ] 2>/dev/null; then
-    log_attention "[$PROJ_NAME] $vuln_count vulnérabilités pip-audit"
-    echo "- ⚠️ **$vuln_count vulnérabilités pip-audit** dans \`$(basename "$req")\`" >> "$REPORT"
+    log_attention "[$PROJ_NAME] $vuln_count pip-audit vulnerabilities"
+    echo "- ⚠️ **$vuln_count $L_PIP_AUDIT_VULNS** in \`$(basename "$req")\`" >> "$REPORT"
     echo "$audit_output" | jq -r '.[] | select(.vulns | length > 0) |
       .name as $name | .version as $ver | .vulns[] |
       "  - \($name)@\($ver) — \(.id) (\(.fix_versions | join(", ")))"' 2>/dev/null >> "$REPORT"
     SUMMARY_VULN_PIP=$((SUMMARY_VULN_PIP + 1))
   else
-    echo "- ✅ Aucune vulnérabilité pip-audit" >> "$REPORT"
+    echo "- ✅ $L_NO_VULN_PIP" >> "$REPORT"
   fi
 done
 
@@ -84,13 +84,13 @@ if [ -f "$PROJ/requirements.txt" ] || [ -f "$PROJ/pyproject.toml" ]; then
   osv_count=$(echo "$osv_output" | jq '.results | length' 2>/dev/null | tail -1 || true)
   osv_count="${osv_count:-0}"
   if [ "$osv_count" -gt 0 ] 2>/dev/null; then
-    log_attention "[$PROJ_NAME] $osv_count résultats osv-scanner"
-    echo "- ⚠️ **$osv_count vulnérabilités osv-scanner**" >> "$REPORT"
+    log_attention "[$PROJ_NAME] $osv_count osv-scanner results"
+    echo "- ⚠️ **$osv_count osv-scanner vulnerabilities**" >> "$REPORT"
   fi
 fi
 
-# --- Grype (second avis, base Anchore) ---
-if [ "${GRYPE_AVAILABLE:-0}" -eq 1 ] && [ "${GRYPE_DATE:-non installee}" != "non installee" ]; then
+# --- Grype (second opinion, Anchore database) ---
+if [ "${GRYPE_AVAILABLE:-0}" -eq 1 ] && [ "${GRYPE_DATE:-not installed}" != "not installed" ]; then
   echo "  grype..."
   grype_output=$(GRYPE_DB_CACHE_DIR="${DATA_DIR:-/data}/grype" grype dir:"$PROJ" --only-fixed -o json -q 2>/dev/null || echo '{"matches":[]}')
 
@@ -112,17 +112,21 @@ if [ "${GRYPE_AVAILABLE:-0}" -eq 1 ] && [ "${GRYPE_DATE:-non installee}" != "non
     grype_high=$(echo "$grype_filtered" | jq '[.[] | select(.vulnerability.severity == "High")] | length' 2>/dev/null | tail -1 || true)
     grype_critical="${grype_critical:-0}"; grype_high="${grype_high:-0}"
 
-    log_attention "[$PROJ_NAME] Grype: $grype_count vulnérabilités ($grype_critical Critical, $grype_high High)"
-    echo "- ⚠️ **Grype : $grype_count vulnérabilités** ($grype_critical Critical, $grype_high High) — *second avis, base Anchore*" >> "$REPORT"
+    log_attention "[$PROJ_NAME] Grype: $grype_count vulns ($grype_critical Critical, $grype_high High)"
+    # shellcheck disable=SC2059
+    printf -v _grype_label "$L_GRYPE_VULNS_DETAIL" "$grype_count"
+    echo "- ⚠️ **$_grype_label** ($grype_critical Critical, $grype_high High) — *$L_SECOND_OPINION*" >> "$REPORT"
 
     echo "$grype_filtered" | jq -r '.[0:10][] |
       "  - `\(.artifact.name)` \(.artifact.version) → \(.vulnerability.id) (\(.vulnerability.severity)) — fix: \(.vulnerability.fix.versions // ["?"] | join(", "))"' 2>/dev/null >> "$REPORT" || true
     if [ "$grype_count" -gt 10 ] 2>/dev/null; then
-      echo "  - *... et $((grype_count - 10)) autres*" >> "$REPORT"
+      # shellcheck disable=SC2059
+      printf -v _more "$L_AND_MORE" "$((grype_count - 10))"
+      echo "  - *$_more*" >> "$REPORT"
     fi
     SUMMARY_VULN_GRYPE=$((SUMMARY_VULN_GRYPE + 1))
   else
-    echo "- ✅ Aucune vulnérabilité Grype" >> "$REPORT"
+    echo "- ✅ $L_NO_VULN_GRYPE" >> "$REPORT"
   fi
 fi
 

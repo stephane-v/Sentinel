@@ -2,7 +2,7 @@
 # Arguments: $1=PROJECTS_DIR $2=REPORT_BODY
 # SECURITY: .env files are excluded from ALL scans by design.
 # NOTE: Variables inherited from sentinel.sh (sourced): EXCLUDE_DIRS, GREP_EXCLUDE_DIRS,
-#       REPORT_FILTERED, COUNT_FILTERED, SUMMARY_*, set_verdict, log_* functions
+#       REPORT_FILTERED, COUNT_FILTERED, SUMMARY_*, L_*, set_verdict, log_* functions
 SCAN_DIR="$1"
 REPORT="$2"
 DEPTH="${SCAN_DEPTH:-4}"
@@ -20,14 +20,11 @@ _is_i18n_file() {
   return 1
 }
 
-# === Check if path is in an editor/IDE directory ===
 _is_editor_path() {
   local f="$1"
   local IFS=':'
   for pattern in $EDITOR_DIRS; do
-    case "$f" in
-      */$pattern/*) return 0 ;;
-    esac
+    case "$f" in */$pattern/*) return 0 ;; esac
   done
   return 1
 }
@@ -48,27 +45,21 @@ _build_find_excludes() {
 }
 FIND_EXCLUDES=$(_build_find_excludes)
 
-# === File dates helper ===
 _file_dates() {
   local f="$1"
   local mod cre
   mod=$(stat -c '%y' "$f" 2>/dev/null | cut -d'.' -f1) || mod="?"
   cre=$(stat -c '%w' "$f" 2>/dev/null | cut -d'.' -f1) || cre="?"
   [ "$cre" = "-" ] && cre="n/a"
-  echo "cree: $cre | modifie: $mod"
+  echo "$L_CREATED: $cre | $L_MODIFIED: $mod"
 }
-
-# === Phase 2 sections ===
-# We write to REPORT (body) organized by severity
 
 # Temp collectors
 _CRITIQUE_SECTION=$(mktemp /tmp/sentinel-ioc-crit.XXXXXX)
 _ATTENTION_SECTION=$(mktemp /tmp/sentinel-ioc-attn.XXXXXX)
 
-# -------------------------------------------------------
-# --- Fichiers malveillants connus ---
-# -------------------------------------------------------
-echo "-- Fichiers malveillants connus --"
+# --- Known malicious files ---
+echo "-- Known malicious files --"
 while IFS= read -r pattern; do
   [ -z "$pattern" ] && continue
   [[ "$pattern" =~ ^# ]] && continue
@@ -80,22 +71,20 @@ while IFS= read -r pattern; do
     while IFS= read -r f; do
       [ -z "$f" ] && continue
       if _is_editor_path "$f"; then
-        log_filtered "Fichier IOC dans répertoire éditeur: $f"
-        echo "| \`$f\` | Fichier IOC \`$pattern\` | Répertoire éditeur |" >> "$REPORT_FILTERED"
+        log_filtered "IOC file in IDE directory: $f"
+        echo "| \`$f\` | $L_FP_IOC_FILE \`$pattern\` | $L_FP_IDE |" >> "$REPORT_FILTERED"
         COUNT_FILTERED=$((COUNT_FILTERED + 1))
       else
-        log_critique "Fichier IOC confirmé: $pattern → $f"
-        echo "- 🚨 **Fichier IOC confirmé** : \`$pattern\` — \`$f\` — *$(_file_dates "$f")*" >> "$_CRITIQUE_SECTION"
+        log_critique "Confirmed IOC file: $pattern → $f"
+        echo "- 🚨 **$L_IOC_FILE_CONFIRMED** : \`$pattern\` — \`$f\` — *$(_file_dates "$f")*" >> "$_CRITIQUE_SECTION"
         SUMMARY_IOC_CONFIRMED=$((SUMMARY_IOC_CONFIRMED + 1))
       fi
     done <<< "$results"
   fi
 done < /sentinel/iocs/malicious_files.txt
 
-# -------------------------------------------------------
-# --- Patterns dans le code ---
-# -------------------------------------------------------
-echo "-- Patterns malveillants dans le code --"
+# --- Malicious patterns in code ---
+echo "-- Malicious patterns in code --"
 while IFS= read -r pattern; do
   [ -z "$pattern" ] && continue
   [[ "$pattern" =~ ^# ]] && continue
@@ -111,47 +100,37 @@ while IFS= read -r pattern; do
   if [ -n "$results" ]; then
     while IFS= read -r f; do
       [ -z "$f" ] && continue
-
-      # Classify by context
       if _is_editor_path "$f"; then
-        log_filtered "Pattern '$pattern' dans répertoire éditeur: $f"
-        echo "| \`$f\` | Pattern \`$pattern\` | Répertoire éditeur |" >> "$REPORT_FILTERED"
+        log_filtered "Pattern '$pattern' in IDE directory: $f"
+        echo "| \`$f\` | $L_FP_PATTERN \`$pattern\` | $L_FP_IDE |" >> "$REPORT_FILTERED"
         COUNT_FILTERED=$((COUNT_FILTERED + 1))
         continue
       fi
-
-      # Check file type: .md/.txt = documentation about the attack, not the attack
       case "$f" in
         *.md|*.txt)
-          log_filtered "Pattern '$pattern' dans documentation: $f"
-          echo "| \`$f\` | Pattern \`$pattern\` | Fichier documentation |" >> "$REPORT_FILTERED"
+          log_filtered "Pattern '$pattern' in documentation: $f"
+          echo "| \`$f\` | $L_FP_PATTERN \`$pattern\` | $L_FP_DOC |" >> "$REPORT_FILTERED"
           COUNT_FILTERED=$((COUNT_FILTERED + 1))
           continue
           ;;
       esac
-
-      # Exfiltration endpoints in code = CRITIQUE
       case "$pattern" in
         webhook.site|checkmarx.zone|models.litellm.cloud)
-          log_critique "Endpoint d'exfiltration '$pattern' dans: $f"
-          echo "- 🚨 **Endpoint d'exfiltration** : \`$pattern\` dans \`$f\` — *$(_file_dates "$f")*" >> "$_CRITIQUE_SECTION"
+          log_critique "Exfiltration endpoint '$pattern' in: $f"
+          echo "- 🚨 **$L_EXFILTRATION_ENDPOINT** : \`$pattern\` in \`$f\` — *$(_file_dates "$f")*" >> "$_CRITIQUE_SECTION"
           SUMMARY_IOC_CONFIRMED=$((SUMMARY_IOC_CONFIRMED + 1))
           continue
           ;;
       esac
-
-      # Other patterns in code files = ATTENTION
-      log_attention "Pattern suspect '$pattern' dans: $f"
-      echo "- ⚠️ **Pattern suspect** : \`$pattern\` dans \`$f\` — *$(_file_dates "$f")*" >> "$_ATTENTION_SECTION"
+      log_attention "Suspicious pattern '$pattern' in: $f"
+      echo "- ⚠️ **$L_SUSPICIOUS_PATTERN** : \`$pattern\` in \`$f\` — *$(_file_dates "$f")*" >> "$_ATTENTION_SECTION"
       SUMMARY_PATTERN_SUSPECT=$((SUMMARY_PATTERN_SUSPECT + 1))
     done <<< "$results"
   fi
 done < /sentinel/iocs/malicious_patterns.txt
 
-# -------------------------------------------------------
-# --- Caractères Unicode invisibles ---
-# -------------------------------------------------------
-echo "-- Caractères Unicode invisibles --"
+# --- Invisible Unicode characters ---
+echo "-- Invisible Unicode characters --"
 UNICODE_PATTERN='[\x{200B}-\x{200F}\x{2028}-\x{202F}\x{2060}-\x{206F}\x{FEFF}]'
 
 # Pass 1: text source files
@@ -170,24 +149,23 @@ unicode_text=$(grep -rPl --binary-files=without-match \
 if [ -n "$unicode_text" ]; then
   while IFS= read -r f; do
     [ -z "$f" ] && continue
-
     if _is_editor_path "$f"; then
-      log_filtered "Unicode invisible dans répertoire éditeur: $f"
-      echo "| \`$f\` | Unicode invisibles | Répertoire éditeur |" >> "$REPORT_FILTERED"
+      log_filtered "Invisible Unicode in IDE directory: $f"
+      echo "| \`$f\` | $L_FP_UNICODE | $L_FP_IDE |" >> "$REPORT_FILTERED"
       COUNT_FILTERED=$((COUNT_FILTERED + 1))
     elif _is_i18n_file "$f"; then
-      log_filtered "Unicode invisible dans fichier i18n: $f"
-      echo "| \`$f\` | Unicode invisibles | Fichier i18n/locales |" >> "$REPORT_FILTERED"
+      log_filtered "Invisible Unicode in i18n file: $f"
+      echo "| \`$f\` | $L_FP_UNICODE | $L_FP_I18N |" >> "$REPORT_FILTERED"
       COUNT_FILTERED=$((COUNT_FILTERED + 1))
     else
-      log_attention "Unicode invisible dans code source: $f"
-      echo "- ⚠️ **Unicode invisible dans code source** : \`$f\` — *$(_file_dates "$f")*" >> "$_ATTENTION_SECTION"
+      log_attention "Invisible Unicode in source code: $f"
+      echo "- ⚠️ **$L_UNICODE_INVISIBLE** : \`$f\` — *$(_file_dates "$f")*" >> "$_ATTENTION_SECTION"
       SUMMARY_UNICODE_SOURCE=$((SUMMARY_UNICODE_SOURCE + 1))
     fi
   done <<< "$unicode_text"
 fi
 
-# Pass 2: binary files (<5MB) — always filtered as false positive
+# Pass 2: binary files (<5MB)
 # shellcheck disable=SC2086
 unicode_binary=$(find "$SCAN_DIR" -maxdepth "$DEPTH" -type f \
   \( -name "*.png" -o -name "*.jpg" -o -name "*.gif" -o -name "*.svg" \
@@ -200,16 +178,14 @@ unicode_binary=$(find "$SCAN_DIR" -maxdepth "$DEPTH" -type f \
 if [ -n "$unicode_binary" ]; then
   while IFS= read -r f; do
     [ -z "$f" ] && continue
-    log_filtered "Unicode invisible dans binaire: $f"
-    echo "| \`$f\` | Unicode invisibles | Fichier binaire |" >> "$REPORT_FILTERED"
+    log_filtered "Invisible Unicode in binary: $f"
+    echo "| \`$f\` | $L_FP_UNICODE | $L_FP_BINARY |" >> "$REPORT_FILTERED"
     COUNT_FILTERED=$((COUNT_FILTERED + 1))
   done <<< "$unicode_binary"
 fi
 
-# -------------------------------------------------------
-# --- Hashes malveillants connus ---
-# -------------------------------------------------------
-echo "-- Vérification hashes malveillants --"
+# --- Known malicious hashes ---
+echo "-- Malicious hash verification --"
 HASH_FILE=$(mktemp /tmp/sentinel-hashes.XXXXXX)
 # shellcheck disable=SC2086
 find "$SCAN_DIR" -maxdepth "$DEPTH" -type f \( -name "*.js" -o -name "*.py" \) \
@@ -222,36 +198,34 @@ while IFS= read -r hash; do
   [[ "$hash" =~ ^# ]] && continue
   results=$(grep "^$hash" "$HASH_FILE" 2>/dev/null | head -5 || true)
   if [ -n "$results" ]; then
-    log_critique "Hash malveillant trouvé: $hash"
+    log_critique "Malicious hash found: $hash"
     while IFS=' ' read -r _ fpath; do
-      echo "- 🚨 **Hash malveillant confirmé** : \`$hash\` — \`$fpath\` — *$(_file_dates "$fpath")*" >> "$_CRITIQUE_SECTION"
+      echo "- 🚨 **$L_MALICIOUS_HASHES** : \`$hash\` — \`$fpath\` — *$(_file_dates "$fpath")*" >> "$_CRITIQUE_SECTION"
       SUMMARY_HASH_MATCH=$((SUMMARY_HASH_MATCH + 1))
     done <<< "$results"
   fi
 done < /sentinel/iocs/malicious_hashes.txt
 rm -f "$HASH_FILE"
 
-# -------------------------------------------------------
-# --- Assemble IOC section into report body ---
-# -------------------------------------------------------
-echo "## Recherche IOCs (Indicators of Compromise)" >> "$REPORT"
+# --- Assemble IOC section ---
+echo "## $L_IOC_SECTION" >> "$REPORT"
 echo "" >> "$REPORT"
 
 _crit_content=$(cat "$_CRITIQUE_SECTION" 2>/dev/null)
 _attn_content=$(cat "$_ATTENTION_SECTION" 2>/dev/null)
 
 if [ -z "$_crit_content" ] && [ -z "$_attn_content" ]; then
-  log_ok "Aucun IOC détecté"
-  echo "✅ Aucun IOC ni pattern suspect détecté." >> "$REPORT"
+  log_ok "No IOC detected"
+  echo "✅ $L_NO_IOC" >> "$REPORT"
 else
   if [ -n "$_crit_content" ]; then
-    echo "### 🚨 IOCs confirmés" >> "$REPORT"
+    echo "### 🚨 $L_IOC_CONFIRMED" >> "$REPORT"
     echo "" >> "$REPORT"
     echo "$_crit_content" >> "$REPORT"
     echo "" >> "$REPORT"
   fi
   if [ -n "$_attn_content" ]; then
-    echo "### ⚠️ Éléments suspects (vérification manuelle requise)" >> "$REPORT"
+    echo "### ⚠️ $L_SUSPICIOUS_ELEMENTS" >> "$REPORT"
     echo "" >> "$REPORT"
     echo "$_attn_content" >> "$REPORT"
     echo "" >> "$REPORT"
@@ -259,6 +233,4 @@ else
 fi
 
 echo "" >> "$REPORT"
-
-# Cleanup temp files
 rm -f "$_CRITIQUE_SECTION" "$_ATTENTION_SECTION"
