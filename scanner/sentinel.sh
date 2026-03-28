@@ -46,9 +46,9 @@ case "${1:-scan}" in
     echo "-- Grype --"
     GRYPE_DB_CACHE_DIR="$DATA_DIR/grype" grype db update 2>&1
 
-    # Mise à jour base osv-scanner (se fait automatiquement mais on force)
+    # Mise à jour base osv-scanner (se fait automatiquement au scan)
     echo "-- OSV Scanner --"
-    osv-scanner --experimental-offline --experimental-download-offline-databases 2>&1 || true
+    osv-scanner --experimental-local-db --experimental-download-offline-databases 2>&1 || true
 
     # Mise à jour des listes IOC custom
     echo "-- IOCs custom --"
@@ -66,6 +66,18 @@ case "${1:-scan}" in
     echo "  Cible : $PROJECTS_DIR"
     echo "============================================"
     echo ""
+
+    # Vérifier la présence des bases de vulnérabilités
+    GRYPE_DB="$DATA_DIR/grype"
+    if [ ! -d "$GRYPE_DB" ] || [ -z "$(ls -A "$GRYPE_DB" 2>/dev/null)" ]; then
+      echo -e "${YELLOW}[ALERTE]${NC} Base Grype absente. Lancez d'abord :"
+      echo "  docker compose run --rm sentinel update"
+      echo ""
+    else
+      GRYPE_DATE=$(find "$GRYPE_DB" -type f -name "*.db" -printf '%TY-%Tm-%Td %TH:%TM\n' 2>/dev/null | head -1 || true)
+      [ -z "$GRYPE_DATE" ] && GRYPE_DATE=$(stat -c '%y' "$GRYPE_DB" 2>/dev/null | cut -d'.' -f1 || echo "?")
+      echo "  Base Grype : $GRYPE_DATE"
+    fi
 
     # Vérifier que le répertoire est monté
     if [ ! -d "$PROJECTS_DIR" ]; then
@@ -89,6 +101,7 @@ case "${1:-scan}" in
 **Date** : $(date '+%Y-%m-%d %H:%M:%S')
 **Cible** : $PROJECTS_DIR
 **Seuil minimum** : $SEVERITY_MIN
+**Base Grype** : ${GRYPE_DATE:-non installee}
 
 ---
 
