@@ -84,23 +84,42 @@ done < /sentinel/iocs/malicious_patterns.txt
 
 # --- Caractères Unicode invisibles (GlassWorm) ---
 echo "-- Caractères Unicode invisibles --"
-# Scan uniquement les fichiers source texte (--binary-files=without-match exclut binaires/images/fonts)
+UNICODE_PATTERN='[\x{200B}-\x{200F}\x{2028}-\x{202F}\x{2060}-\x{206F}\x{FEFF}]'
+UNICODE_GREP_BASE="--exclude-dir=.git --exclude-dir=node_modules --exclude-dir=.venv --exclude-dir=venv ${GREP_EXCLUDE_DIRS:-} --exclude=.env --exclude=.env.*"
+
+# Pass 1 : fichiers source texte — CRITIQUE
 # shellcheck disable=SC2086
-unicode_results=$(grep -rPl --binary-files=without-match \
-  --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=.venv --exclude-dir=venv \
-  ${GREP_EXCLUDE_DIRS:-} \
-  --exclude=".env" --exclude=".env.*" \
+unicode_text=$(grep -rPl --binary-files=without-match \
+  $UNICODE_GREP_BASE \
   --include="*.js" --include="*.ts" --include="*.py" \
   --include="*.json" --include="*.yml" --include="*.yaml" \
-  '[\x{200B}-\x{200F}\x{2028}-\x{202F}\x{2060}-\x{206F}\x{FEFF}]' \
+  "$UNICODE_PATTERN" \
   "$SCAN_DIR" 2>/dev/null | head -20 || true)
-if [ -n "$unicode_results" ]; then
-  log_critical "Caractères Unicode invisibles détectés (technique GlassWorm)"
-  echo "- ❌ **Unicode invisibles** (GlassWorm)" >> "$REPORT"
-  echo "$unicode_results" | while read -r f; do
+if [ -n "$unicode_text" ]; then
+  log_critical "Caractères Unicode invisibles détectés dans du code source (technique GlassWorm)"
+  echo "- ❌ **Unicode invisibles dans du code source** (GlassWorm)" >> "$REPORT"
+  echo "$unicode_text" | while read -r f; do
     echo "  - \`$f\` — *$(_file_dates "$f")*" >> "$REPORT"
   done
   IOC_COUNT=$((IOC_COUNT + 1))
+fi
+
+# Pass 2 : fichiers binaires — probable faux-positif mais signale
+# shellcheck disable=SC2086
+unicode_binary=$(grep -rPl \
+  $UNICODE_GREP_BASE \
+  "$UNICODE_PATTERN" \
+  "$SCAN_DIR" 2>/dev/null | head -20 || true)
+# Retirer les fichiers texte deja trouves pour ne garder que les binaires
+if [ -n "$unicode_text" ] && [ -n "$unicode_binary" ]; then
+  unicode_binary=$(echo "$unicode_binary" | grep -vxF "$unicode_text" || true)
+fi
+if [ -n "$unicode_binary" ]; then
+  log_warning "Caractères Unicode invisibles dans des fichiers binaires (probable faux-positif)"
+  echo "- ⚠️ **Unicode invisibles dans des fichiers binaires** (probable faux-positif)" >> "$REPORT"
+  echo "$unicode_binary" | while read -r f; do
+    echo "  - \`$f\` — *$(_file_dates "$f")*" >> "$REPORT"
+  done
 fi
 
 # --- Hashes connus ---
