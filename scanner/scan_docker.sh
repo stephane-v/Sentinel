@@ -3,11 +3,24 @@
 SCAN_DIR="$1"
 REPORT="$2"
 
+DEPTH="${SCAN_DEPTH:-4}"
+
+# Construire exclusions find depuis EXCLUDE_DIRS
+_DOCKER_FIND_EXCLUDES="-not -path */.git/*"
+if [ -n "${EXCLUDE_DIRS:-}" ]; then
+  for _d in $(echo "$EXCLUDE_DIRS" | tr ',' ' '); do
+    _d=$(echo "$_d" | xargs)
+    [ -z "$_d" ] && continue
+    _DOCKER_FIND_EXCLUDES="$_DOCKER_FIND_EXCLUDES -not -path */$_d/*"
+  done
+fi
+
 echo "## Analyse sécurité Docker" >> "$REPORT"
 echo "" >> "$REPORT"
 
 # --- Dockerfiles ---
-find "$SCAN_DIR" -maxdepth 4 \( -name "Dockerfile" -o -name "Dockerfile.*" \) -not -path "*/.git/*" | while read df; do
+# shellcheck disable=SC2086
+find "$SCAN_DIR" -maxdepth "$DEPTH" \( -name "Dockerfile" -o -name "Dockerfile.*" \) $_DOCKER_FIND_EXCLUDES 2>/dev/null | while read df; do
   proj=$(echo "$df" | sed "s|$SCAN_DIR/||")
   echo "### Dockerfile: \`$proj\`" >> "$REPORT"
 
@@ -29,8 +42,8 @@ find "$SCAN_DIR" -maxdepth 4 \( -name "Dockerfile" -o -name "Dockerfile.*" \) -n
   fi
 
   # Multi-stage
-  stages=$(grep -c "^FROM " "$df")
-  if [ "$stages" -gt 1 ]; then
+  stages=$(grep -c "^FROM " "$df" || true)
+  if [ "$stages" -gt 1 ] 2>/dev/null; then
     echo "- ✅ Multi-stage build ($stages stages)" >> "$REPORT"
   else
     echo "- ⚠️ Single-stage build" >> "$REPORT"
@@ -52,7 +65,8 @@ find "$SCAN_DIR" -maxdepth 4 \( -name "Dockerfile" -o -name "Dockerfile.*" \) -n
 done
 
 # --- docker-compose : secrets dans build.args ---
-find "$SCAN_DIR" -maxdepth 4 \( -name "docker-compose*.yml" -o -name "docker-compose*.yaml" \) -not -path "*/.git/*" | while read dc; do
+# shellcheck disable=SC2086
+find "$SCAN_DIR" -maxdepth "$DEPTH" \( -name "docker-compose*.yml" -o -name "docker-compose*.yaml" \) $_DOCKER_FIND_EXCLUDES 2>/dev/null | while read dc; do
   proj=$(echo "$dc" | sed "s|$SCAN_DIR/||")
 
   build_args=$(grep -A5 "build:" "$dc" | grep -i "args" 2>/dev/null)

@@ -38,11 +38,12 @@ if [ -f "$PROJ/package.json" ]; then
   cd "$PROJ"
   audit_output=$(npm audit --json 2>/dev/null || echo '{}')
 
-  critical=$(echo "$audit_output" | jq '.metadata.vulnerabilities.critical // 0' 2>/dev/null || echo 0)
-  high=$(echo "$audit_output" | jq '.metadata.vulnerabilities.high // 0' 2>/dev/null || echo 0)
-  moderate=$(echo "$audit_output" | jq '.metadata.vulnerabilities.moderate // 0' 2>/dev/null || echo 0)
+  critical=$(echo "$audit_output" | jq '.metadata.vulnerabilities.critical // 0' 2>/dev/null | tail -1 || true)
+  high=$(echo "$audit_output" | jq '.metadata.vulnerabilities.high // 0' 2>/dev/null | tail -1 || true)
+  moderate=$(echo "$audit_output" | jq '.metadata.vulnerabilities.moderate // 0' 2>/dev/null | tail -1 || true)
+  critical="${critical:-0}"; high="${high:-0}"; moderate="${moderate:-0}"
 
-  if [ "$critical" -gt 0 ] || [ "$high" -gt 0 ]; then
+  if [ "$critical" -gt 0 ] 2>/dev/null || [ "$high" -gt 0 ] 2>/dev/null; then
     log_warning "[$PROJ_NAME] npm audit: $critical critiques, $high élevées, $moderate modérées"
     echo "- ⚠️ **npm audit** : $critical critiques, $high élevées, $moderate modérées" >> "$REPORT"
   else
@@ -54,8 +55,9 @@ fi
 # --- osv-scanner ---
 echo "  osv-scanner..."
 osv_output=$(osv-scanner --format json --lockfile "$LOCKFILE" 2>/dev/null || echo '{}')
-osv_count=$(echo "$osv_output" | jq '.results | length' 2>/dev/null || echo 0)
-if [ "$osv_count" -gt 0 ]; then
+osv_count=$(echo "$osv_output" | jq '.results | length' 2>/dev/null | tail -1 || true)
+osv_count="${osv_count:-0}"
+if [ "$osv_count" -gt 0 ] 2>/dev/null; then
   log_warning "[$PROJ_NAME] $osv_count résultats osv-scanner"
   echo "- ⚠️ **$osv_count vulnérabilités osv-scanner**" >> "$REPORT"
 fi

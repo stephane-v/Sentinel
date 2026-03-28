@@ -9,8 +9,22 @@ REPORTS_DIR="/reports"
 DATA_DIR="/data"
 SCAN_DEPTH="${SCAN_DEPTH:-4}"
 SEVERITY_MIN="${SEVERITY_MIN:-medium}"
+EXCLUDE_DIRS="${EXCLUDE_DIRS:-sentinel}"
 REPORT_FILE="$REPORTS_DIR/sentinel-$(date +%Y-%m-%d_%H%M%S).md"
 EXIT_CODE=0
+
+# Construire les options find/grep d'exclusion a partir de EXCLUDE_DIRS
+FIND_PRUNE=""
+GREP_EXCLUDE_DIRS=""
+if [ -n "$EXCLUDE_DIRS" ]; then
+  IFS=',' read -ra _EXCLUDE_ARRAY <<< "$EXCLUDE_DIRS"
+  for _dir in "${_EXCLUDE_ARRAY[@]}"; do
+    _dir=$(echo "$_dir" | xargs)  # trim
+    [ -z "$_dir" ] && continue
+    FIND_PRUNE="$FIND_PRUNE -path */$_dir -o"
+    GREP_EXCLUDE_DIRS="$GREP_EXCLUDE_DIRS --exclude-dir=$_dir"
+  done
+fi
 
 # Couleurs
 RED='\033[0;31m'
@@ -86,18 +100,33 @@ EOF
     PYTHON_PROJECTS=()
     NODE_PROJECTS=()
 
+    # Fonction utilitaire find avec exclusions
+    _find_excluded() {
+      local args=("$@")
+      if [ -n "$FIND_PRUNE" ]; then
+        # shellcheck disable=SC2086
+        find "${args[@]}" \( -path "*/.git" $FIND_PRUNE -false \) -prune -o -type f -print 2>/dev/null
+      else
+        find "${args[@]}" -not -path "*/.git/*" -type f -print 2>/dev/null
+      fi
+    }
+
     while IFS= read -r f; do
       [ -z "$f" ] && continue
       PYTHON_PROJECTS+=("$(dirname "$f")")
     done < <(find "$PROJECTS_DIR" -maxdepth "$SCAN_DEPTH" \
       \( -name "requirements.txt" -o -name "requirements-*.txt" -o -name "pyproject.toml" \) \
-      -not -path "*/venv/*" -not -path "*/.venv/*" -not -path "*/node_modules/*" -not -path "*/.git/*" 2>/dev/null | sort -u)
+      -not -path "*/venv/*" -not -path "*/.venv/*" -not -path "*/node_modules/*" -not -path "*/.git/*" \
+      $(for _d in $(echo "$EXCLUDE_DIRS" | tr ',' ' '); do echo "-not -path */$_d/*"; done) \
+      2>/dev/null | sort -u)
 
     while IFS= read -r f; do
       [ -z "$f" ] && continue
       NODE_PROJECTS+=("$(dirname "$f")")
     done < <(find "$PROJECTS_DIR" -maxdepth "$SCAN_DEPTH" -name "package-lock.json" \
-      -not -path "*/node_modules/*" -not -path "*/.git/*" 2>/dev/null | sort -u)
+      -not -path "*/node_modules/*" -not -path "*/.git/*" \
+      $(for _d in $(echo "$EXCLUDE_DIRS" | tr ',' ' '); do echo "-not -path */$_d/*"; done) \
+      2>/dev/null | sort -u)
 
     echo "Projets Python trouvés : ${#PYTHON_PROJECTS[@]}"
     echo "Projets Node.js trouvés : ${#NODE_PROJECTS[@]}"

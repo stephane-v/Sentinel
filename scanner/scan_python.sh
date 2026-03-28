@@ -35,7 +35,10 @@ done < /sentinel/iocs/compromised_pypi.txt
 # --- Versions non pinnées ---
 for req in "$PROJ"/requirements*.txt; do
   [ -f "$req" ] || continue
-  unpinned=$(grep -v "^#\|^$\|^-\|==" "$req" | grep -c "[>=~]" 2>/dev/null || echo 0)
+  unpinned=$(grep -v -E "^#|^$|^-|==" "$req" 2>/dev/null | grep -c -E "[>=~]" 2>/dev/null || true)
+  unpinned="${unpinned:-0}"
+  # Garder uniquement la derniere ligne (le count) au cas ou
+  unpinned=$(echo "$unpinned" | tail -1)
   if [ "$unpinned" -gt 0 ]; then
     log_warning "[$PROJ_NAME] $unpinned dépendances non pinnées (>=, ~=) dans $(basename "$req")"
     echo "- ⚠️ **$unpinned dépendances non pinnées** dans \`$(basename "$req")\`" >> "$REPORT"
@@ -48,9 +51,10 @@ for req in "$PROJ"/requirements*.txt; do
   echo "  pip-audit sur $(basename "$req")..."
   audit_output=$(pip-audit -r "$req" --format json 2>/dev/null || echo '[]')
 
-  vuln_count=$(echo "$audit_output" | jq 'if type == "array" then [.[] | select(.vulns | length > 0)] | length else 0 end' 2>/dev/null || echo 0)
+  vuln_count=$(echo "$audit_output" | jq 'if type == "array" then [.[] | select(.vulns | length > 0)] | length else 0 end' 2>/dev/null | tail -1 || true)
+  vuln_count="${vuln_count:-0}"
 
-  if [ "$vuln_count" -gt 0 ]; then
+  if [ "$vuln_count" -gt 0 ] 2>/dev/null; then
     log_warning "[$PROJ_NAME] $vuln_count vulnérabilités trouvées par pip-audit"
     echo "- ⚠️ **$vuln_count vulnérabilités pip-audit** dans \`$(basename "$req")\`" >> "$REPORT"
 
@@ -67,8 +71,9 @@ done
 if [ -f "$PROJ/requirements.txt" ] || [ -f "$PROJ/pyproject.toml" ]; then
   echo "  osv-scanner..."
   osv_output=$(osv-scanner --format json "$PROJ" 2>/dev/null || echo '{}')
-  osv_count=$(echo "$osv_output" | jq '.results | length' 2>/dev/null || echo 0)
-  if [ "$osv_count" -gt 0 ]; then
+  osv_count=$(echo "$osv_output" | jq '.results | length' 2>/dev/null | tail -1 || true)
+  osv_count="${osv_count:-0}"
+  if [ "$osv_count" -gt 0 ] 2>/dev/null; then
     log_warning "[$PROJ_NAME] $osv_count résultats osv-scanner"
     echo "- ⚠️ **$osv_count vulnérabilités osv-scanner**" >> "$REPORT"
   fi
