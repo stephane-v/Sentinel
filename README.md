@@ -203,9 +203,9 @@ For comprehensive protection, consider combining:
 ### Roadmap
 
 Features not yet implemented:
-- **ctime verification** — use kernel ctime (`stat -c '%z'`) which is resistant to timestomping, to help distinguish legitimate files from backdated ones
+- **ctime anti-timestomping** — Sentinel already displays file birth time and mtime for each detection, but does not yet use kernel ctime (`stat -c '%z'`) which is resistant to timestomping. Future versions will show ctime alongside mtime to help identify backdated files.
+- **Grype project scanning** — Grype DB is updated via `sentinel update` but not yet used to scan project dependencies. Future versions will run `grype dir:` or `grype sbom:` against each project.
 - **SBOM generation** — export dependency lists in SPDX/CycloneDX format
-- **Grype integration in scan** — currently installed but only used for db update, not yet wired into project scans
 - **JSON report format** — `REPORT_FORMAT=json` is accepted but not yet implemented
 
 ### Links
