@@ -4,10 +4,7 @@
 # (secrets, tokens, API keys) must never be read, logged, or sent to external tools.
 SCAN_DIR="$1"
 REPORT="$2"
-
-# Repertoires a exclure de tous les scans
-FIND_EXCLUDE=(-not -path "*/.git/*" -not -path "*/node_modules/*" -not -path "*/.venv/*" -not -path "*/venv/*" -not -name ".env" -not -name ".env.*")
-GREP_EXCLUDE="--exclude-dir=.git --exclude-dir=node_modules --exclude-dir=.venv --exclude-dir=venv --exclude=.env --exclude=.env.*"
+DEPTH="${SCAN_DEPTH:-4}"
 
 echo "## Recherche IOCs (Indicators of Compromise)" >> "$REPORT"
 echo "" >> "$REPORT"
@@ -19,7 +16,12 @@ echo "-- Fichiers malveillants connus --"
 while IFS= read -r pattern; do
   [ -z "$pattern" ] && continue
   [[ "$pattern" =~ ^# ]] && continue
-  results=$(find "$SCAN_DIR" -type f -name "$pattern" "${FIND_EXCLUDE[@]}" 2>/dev/null)
+  results=$(find "$SCAN_DIR" -maxdepth "$DEPTH" -type f -name "$pattern" \
+    -not -path "*/.git/*" \
+    -not -path "*/node_modules/*" \
+    -not -path "*/.venv/*" \
+    -not -path "*/venv/*" \
+    2>/dev/null || true)
   if [ -n "$results" ]; then
     log_critical "Fichier suspect trouvé: $pattern"
     echo "$results" | while read -r f; do echo "  → $f"; done
@@ -34,11 +36,12 @@ echo "-- Patterns malveillants dans le code --"
 while IFS= read -r pattern; do
   [ -z "$pattern" ] && continue
   [[ "$pattern" =~ ^# ]] && continue
-  # shellcheck disable=SC2086
-  results=$(grep -rl $GREP_EXCLUDE \
+  results=$(grep -rl \
+    --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=.venv --exclude-dir=venv \
+    --exclude=".env" --exclude=".env.*" \
     --include="*.js" --include="*.ts" --include="*.py" \
     --include="*.json" --include="*.yml" --include="*.yaml" \
-    "$pattern" "$SCAN_DIR" 2>/dev/null | head -20)
+    "$pattern" "$SCAN_DIR" 2>/dev/null | head -20 || true)
   if [ -n "$results" ]; then
     log_critical "Pattern suspect trouvé: $pattern"
     echo "- ❌ **Pattern malveillant** : \`$pattern\`" >> "$REPORT"
@@ -49,11 +52,12 @@ done < /sentinel/iocs/malicious_patterns.txt
 
 # --- Caractères Unicode invisibles (GlassWorm) ---
 echo "-- Caractères Unicode invisibles --"
-# shellcheck disable=SC2086
-unicode_results=$(grep -rPl $GREP_EXCLUDE \
+unicode_results=$(grep -rPl \
+  --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=.venv --exclude-dir=venv \
+  --exclude=".env" --exclude=".env.*" \
   --include="*.js" --include="*.ts" --include="*.py" \
   '[\x{200B}-\x{200F}\x{2028}-\x{202F}\x{2060}-\x{206F}\x{FEFF}]' \
-  "$SCAN_DIR" 2>/dev/null | head -20)
+  "$SCAN_DIR" 2>/dev/null | head -20 || true)
 if [ -n "$unicode_results" ]; then
   log_critical "Caractères Unicode invisibles détectés (technique GlassWorm)"
   echo "- ❌ **Unicode invisibles** (GlassWorm)" >> "$REPORT"
@@ -63,18 +67,27 @@ fi
 
 # --- Hashes connus ---
 echo "-- Vérification hashes malveillants --"
+# Pre-calculer les hashes des fichiers sources (hors node_modules/venv/.git)
+HASH_FILE=$(mktemp /tmp/sentinel-hashes.XXXXXX)
+find "$SCAN_DIR" -maxdepth "$DEPTH" -type f \( -name "*.js" -o -name "*.py" \) \
+  -not -path "*/.git/*" \
+  -not -path "*/node_modules/*" \
+  -not -path "*/.venv/*" \
+  -not -path "*/venv/*" \
+  -size -1M \
+  -exec sha256sum {} + 2>/dev/null > "$HASH_FILE" || true
+
 while IFS= read -r hash; do
   [ -z "$hash" ] && continue
   [[ "$hash" =~ ^# ]] && continue
-  results=$(find "$SCAN_DIR" -type f \( -name "*.js" -o -name "*.py" \) \
-    "${FIND_EXCLUDE[@]}" \
-    -exec sha256sum {} \; 2>/dev/null | grep "^$hash" | head -5)
+  results=$(grep "^$hash" "$HASH_FILE" 2>/dev/null | head -5 || true)
   if [ -n "$results" ]; then
     log_critical "Hash malveillant trouvé: $hash"
     echo "- ❌ **Hash malveillant** : \`$hash\`" >> "$REPORT"
     IOC_COUNT=$((IOC_COUNT + 1))
   fi
 done < /sentinel/iocs/malicious_hashes.txt
+rm -f "$HASH_FILE"
 
 # --- Résultat ---
 if [ $IOC_COUNT -eq 0 ]; then
