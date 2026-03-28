@@ -1,5 +1,7 @@
 #!/bin/bash
 # Arguments: $1=PROJECTS_DIR $2=REPORT_FILE
+# SECURITY: .env files are excluded from ALL scans by design — their content
+# (secrets, tokens, API keys) must never be read, logged, or sent to external tools.
 SCAN_DIR="$1"
 REPORT="$2"
 
@@ -13,7 +15,7 @@ echo "-- Fichiers malveillants connus --"
 while IFS= read -r pattern; do
   [ -z "$pattern" ] && continue
   [[ "$pattern" =~ ^# ]] && continue
-  results=$(find "$SCAN_DIR" -type f -name "$pattern" -not -path "*/.git/*" 2>/dev/null)
+  results=$(find "$SCAN_DIR" -type f -name "$pattern" -not -path "*/.git/*" -not -name ".env" -not -name ".env.*" -not -path "*/.env" -not -path "*/.env.*" 2>/dev/null)
   if [ -n "$results" ]; then
     log_critical "Fichier suspect trouvé: $pattern"
     echo "$results" | while read -r f; do echo "  → $f"; done
@@ -30,6 +32,7 @@ while IFS= read -r pattern; do
   [[ "$pattern" =~ ^# ]] && continue
   results=$(grep -rl "$pattern" --include="*.js" --include="*.ts" --include="*.py" \
     --include="*.json" --include="*.yml" --include="*.yaml" \
+    --exclude=".env" --exclude=".env.*" \
     -r "$SCAN_DIR" 2>/dev/null | grep -v "/.git/" | head -20)
   if [ -n "$results" ]; then
     log_critical "Pattern suspect trouvé: $pattern"
@@ -43,6 +46,7 @@ done < /sentinel/iocs/malicious_patterns.txt
 echo "-- Caractères Unicode invisibles --"
 unicode_results=$(grep -rPl '[\x{200B}-\x{200F}\x{2028}-\x{202F}\x{2060}-\x{206F}\x{FEFF}]' \
   --include="*.js" --include="*.ts" --include="*.py" \
+  --exclude=".env" --exclude=".env.*" \
   "$SCAN_DIR" 2>/dev/null | grep -v "/.git/\|/node_modules/" | head -20)
 if [ -n "$unicode_results" ]; then
   log_critical "Caractères Unicode invisibles détectés (technique GlassWorm)"
@@ -57,6 +61,7 @@ while IFS= read -r hash; do
   [ -z "$hash" ] && continue
   [[ "$hash" =~ ^# ]] && continue
   results=$(find "$SCAN_DIR" -type f \( -name "*.js" -o -name "*.py" \) -not -path "*/.git/*" \
+    -not -name ".env" -not -name ".env.*" \
     -exec sha256sum {} \; 2>/dev/null | grep "^$hash" | head -5)
   if [ -n "$results" ]; then
     log_critical "Hash malveillant trouvé: $hash"

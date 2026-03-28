@@ -2,6 +2,8 @@
 set -euo pipefail
 
 # === Configuration ===
+# SECURITY: .env files are excluded from ALL scans by design.
+# Their content (secrets, tokens, API keys) is never read, logged, or sent to external tools.
 PROJECTS_DIR="${2:-/projects}"
 REPORTS_DIR="/reports"
 DATA_DIR="/data"
