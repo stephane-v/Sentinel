@@ -158,6 +158,68 @@ Les listes IOC couvrent les attaques supply chain connues :
 - Patterns d'exfiltration (webhook.site, domaines C2)
 - Caracteres Unicode invisibles (technique GlassWorm)
 
+## Alternatives and positioning
+
+Sentinel does not replace existing security tools — it complements them.
+
+Most supply chain security tools fall into two categories: **CVE scanners** (osv-scanner, Snyk, npm audit) that detect known vulnerabilities after they are published, and **install-time protectors** (Socket.dev, SafeDep PMG, Aikido Safe Chain) that block malicious packages before they enter your project. Sentinel occupies a different niche: **post-incident forensics and Docker security audit**. It answers the question _"have my existing projects been compromised?"_ rather than _"will this new package compromise me?"_.
+
+Sentinel scans your project directories for traces of known supply chain attacks — IOC files, malicious patterns, compromised package versions, invisible Unicode characters — and also audits your Dockerfiles for secret exposure, missing USER directives, and single-stage builds. Everything runs locally in a hardened Docker container. No data leaves your machine.
+
+It is designed for independent developers and small teams who deploy on their own infrastructure, without GitHub Actions, cloud SaaS, or CI/CD pipelines.
+
+For comprehensive protection, consider combining:
+1. **Sentinel** — forensic scan of existing projects + Dockerfile audit + IOC detection
+2. **osv-scanner** or **npm audit / pip-audit** — known CVE detection (Sentinel already embeds these)
+3. **Socket.dev**, **SafeDep PMG**, or **Aikido Safe Chain** — proactive install-time protection
+
+### Detection capabilities
+
+| Capability | Sentinel | Socket.dev | OSV-Scanner | Snyk | npm/pip audit | Safe Chain | PMG | shai-hulud-scanner |
+|---|---|---|---|---|---|---|---|---|
+| Known CVE detection | ✅ via npm/pip audit, osv-scanner | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ |
+| Zero-day malware detection | ❌ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ |
+| Campaign IOC detection | ✅ Shai-Hulud, LiteLLM, Cline, GlassWorm | ⚠️ partial | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ Shai-Hulud only |
+| Behavioral analysis | ❌ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ |
+| Dockerfile/secrets audit | ✅ | ❌ | ❌ | ⚠️ containers | ❌ | ❌ | ❌ | ❌ |
+| Install-time protection | ❌ | ✅ sfw | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ |
+| Unicode steganography | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| SHA-256 hash matching | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
+| SBOM | ❌ | ✅ | ✅ | ✅ | ⚠️ npm sbom | ❌ | ✅ | ❌ |
+
+### Operational characteristics
+
+| Characteristic | Sentinel | Socket.dev | OSV-Scanner | Snyk | npm/pip audit | Safe Chain | PMG | shai-hulud-scanner |
+|---|---|---|---|---|---|---|---|---|
+| License | Open source | Proprietary | Apache 2.0 | Proprietary | MIT / built-in | Open source | Open source | MIT |
+| Runtime dependencies | Docker | Node.js | Go binary | Node.js | Built-in | Node.js | Go binary | Python |
+| Ecosystems | npm + pip | 10+ | 11+ | 20+ | 1 each | npm + pip | npm + pip | npm only |
+| Works offline | ⚠️ IOCs yes, CVE needs db update | ❌ | ✅ | ❌ | ⚠️ | ❌ | ❌ | ✅ |
+| Zero cloud dependency | ✅ | ❌ | ✅ | ❌ | ✅ | ❌ | ❌ | ✅ |
+| Self-hosted / no SaaS | ✅ | ❌ | ✅ | ❌ | ✅ | ⚠️ | ⚠️ | ✅ |
+| Suited for solo dev / small team | ✅ | ⚠️ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ |
+| File timestamps in reports | ✅ mtime + birth | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+
+### Roadmap
+
+Features not yet implemented:
+- **ctime verification** — use kernel ctime (`stat -c '%z'`) which is resistant to timestomping, to help distinguish legitimate files from backdated ones
+- **SBOM generation** — export dependency lists in SPDX/CycloneDX format
+- **Grype integration in scan** — currently installed but only used for db update, not yet wired into project scans
+- **JSON report format** — `REPORT_FORMAT=json` is accepted but not yet implemented
+
+### Links
+
+| Tool | URL |
+|---|---|
+| Socket.dev | https://socket.dev |
+| OSV-Scanner | https://github.com/google/osv-scanner |
+| Snyk | https://snyk.io |
+| pip-audit | https://github.com/pypa/pip-audit |
+| Aikido Safe Chain | https://github.com/AikidoSec/safe-chain |
+| SafeDep PMG | https://github.com/safedep/pmg |
+| shai-hulud-scanner | https://github.com/Drasrax/npm-shai-hulud-scanner |
+
 ## Licence
 
 Usage interne — outil de securite defensive.
