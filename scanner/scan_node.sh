@@ -1,5 +1,6 @@
 #!/bin/bash
-# Arguments: $1=PROJECT_DIR $2=REPORT_FILE
+# Arguments: $1=PROJECT_DIR $2=REPORT_BODY
+# NOTE: Variables inherited from sentinel.sh (sourced): SUMMARY_*, set_verdict, log_* functions
 PROJ="$1"
 REPORT="$2"
 PROJ_NAME=$(echo "$PROJ" | sed "s|^/projects/||")
@@ -17,22 +18,22 @@ while IFS= read -r line; do
   pkg=$(echo "$line" | cut -d'@' -f1)
   ver=$(echo "$line" | cut -d'@' -f2)
 
-  # Chercher dans package-lock.json
   found=$(jq -r --arg pkg "$pkg" --arg ver "$ver" \
     '.packages | to_entries[] | select(.key | endswith($pkg)) | select(.value.version == $ver) | .key' \
     "$LOCKFILE" 2>/dev/null)
 
   if [ -n "$found" ]; then
-    log_critical "[$PROJ_NAME] Paquet npm compromis: $pkg@$ver"
-    echo "- ❌ **Paquet compromis** : \`$pkg@$ver\`" >> "$REPORT"
+    log_critique "[$PROJ_NAME] Paquet npm compromis: $pkg@$ver"
+    echo "- 🚨 **Paquet compromis** : \`$pkg@$ver\`" >> "$REPORT"
+    SUMMARY_COMPROMISED_PKG=$((SUMMARY_COMPROMISED_PKG + 1))
   fi
 done < /sentinel/iocs/compromised_npm.txt
 
-# --- Paquets avec install scripts (vecteur d'attaque) ---
+# --- Paquets avec install scripts ---
 script_count=$(jq '[.packages | to_entries[] | select(.value.hasInstallScript == true)] | length' "$LOCKFILE" 2>/dev/null || echo "?")
 echo "- Paquets avec install scripts : **$script_count**" >> "$REPORT"
 
-# --- npm audit (nécessite le package.json aussi) ---
+# --- npm audit ---
 if [ -f "$PROJ/package.json" ]; then
   echo "  npm audit..."
   cd "$PROJ"
@@ -44,8 +45,9 @@ if [ -f "$PROJ/package.json" ]; then
   critical="${critical:-0}"; high="${high:-0}"; moderate="${moderate:-0}"
 
   if [ "$critical" -gt 0 ] 2>/dev/null || [ "$high" -gt 0 ] 2>/dev/null; then
-    log_warning "[$PROJ_NAME] npm audit: $critical critiques, $high élevées, $moderate modérées"
+    log_attention "[$PROJ_NAME] npm audit: $critical critiques, $high élevées, $moderate modérées"
     echo "- ⚠️ **npm audit** : $critical critiques, $high élevées, $moderate modérées" >> "$REPORT"
+    SUMMARY_VULN_NPM=$((SUMMARY_VULN_NPM + 1))
   else
     echo "- ✅ npm audit clean ($moderate modérées)" >> "$REPORT"
   fi
@@ -58,7 +60,7 @@ osv_output=$(osv-scanner --format json --lockfile "$LOCKFILE" 2>/dev/null || ech
 osv_count=$(echo "$osv_output" | jq '.results | length' 2>/dev/null | tail -1 || true)
 osv_count="${osv_count:-0}"
 if [ "$osv_count" -gt 0 ] 2>/dev/null; then
-  log_warning "[$PROJ_NAME] $osv_count résultats osv-scanner"
+  log_attention "[$PROJ_NAME] $osv_count résultats osv-scanner"
   echo "- ⚠️ **$osv_count vulnérabilités osv-scanner**" >> "$REPORT"
 fi
 
