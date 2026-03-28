@@ -44,7 +44,7 @@ case "${1:-scan}" in
 
     # Mise à jour base grype
     echo "-- Grype --"
-    grype db update --cache-dir "$DATA_DIR/grype" 2>&1
+    GRYPE_DB_CACHE_DIR="$DATA_DIR/grype" grype db update 2>&1
 
     # Mise à jour base osv-scanner (se fait automatiquement mais on force)
     echo "-- OSV Scanner --"
