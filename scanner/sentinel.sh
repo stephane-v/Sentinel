@@ -13,12 +13,8 @@ EXCLUDE_DIRS="${EXCLUDE_DIRS:-sentinel}"
 IOC_AUTO_UPDATE="${IOC_AUTO_UPDATE:-true}"
 REPORT_FILE="$REPORTS_DIR/sentinel-$(date +%Y-%m-%d_%H%M%S).md"
 
-# === IOC directory: persistent copy in data volume ===
-# First run: seed from image. Subsequent runs: use persisted copy (updated by feeds).
-IOC_DIR="$DATA_DIR/iocs"
-if [ ! -d "$IOC_DIR" ]; then
-  cp -r /sentinel/iocs "$IOC_DIR" 2>/dev/null || IOC_DIR="/sentinel/iocs"
-fi
+# === IOC directory: bind-mounted from host for persistence ===
+IOC_DIR="/sentinel/iocs"
 export IOC_DIR
 
 # === Load i18n ===

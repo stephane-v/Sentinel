@@ -9,6 +9,8 @@ services:
       - ./reports:/reports
       # CVE database persistence (osv-scanner, grype)
       - ./data:/data
+      # IOC lists — read-write for auto-update feeds
+      - ./scanner/iocs:/sentinel/iocs
     # Host UID/GID for writing reports and data
     user: "${UID:-1000}:${GID:-1000}"
     environment:
