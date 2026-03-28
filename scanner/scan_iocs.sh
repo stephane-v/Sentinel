@@ -5,6 +5,10 @@
 SCAN_DIR="$1"
 REPORT="$2"
 
+# Repertoires a exclure de tous les scans
+FIND_EXCLUDE=(-not -path "*/.git/*" -not -path "*/node_modules/*" -not -path "*/.venv/*" -not -path "*/venv/*" -not -name ".env" -not -name ".env.*")
+GREP_EXCLUDE="--exclude-dir=.git --exclude-dir=node_modules --exclude-dir=.venv --exclude-dir=venv --exclude=.env --exclude=.env.*"
+
 echo "## Recherche IOCs (Indicators of Compromise)" >> "$REPORT"
 echo "" >> "$REPORT"
 
@@ -15,7 +19,7 @@ echo "-- Fichiers malveillants connus --"
 while IFS= read -r pattern; do
   [ -z "$pattern" ] && continue
   [[ "$pattern" =~ ^# ]] && continue
-  results=$(find "$SCAN_DIR" -type f -name "$pattern" -not -path "*/.git/*" -not -name ".env" -not -name ".env.*" -not -path "*/.env" -not -path "*/.env.*" 2>/dev/null)
+  results=$(find "$SCAN_DIR" -type f -name "$pattern" "${FIND_EXCLUDE[@]}" 2>/dev/null)
   if [ -n "$results" ]; then
     log_critical "Fichier suspect trouvé: $pattern"
     echo "$results" | while read -r f; do echo "  → $f"; done
@@ -30,10 +34,11 @@ echo "-- Patterns malveillants dans le code --"
 while IFS= read -r pattern; do
   [ -z "$pattern" ] && continue
   [[ "$pattern" =~ ^# ]] && continue
-  results=$(grep -rl "$pattern" --include="*.js" --include="*.ts" --include="*.py" \
+  # shellcheck disable=SC2086
+  results=$(grep -rl $GREP_EXCLUDE \
+    --include="*.js" --include="*.ts" --include="*.py" \
     --include="*.json" --include="*.yml" --include="*.yaml" \
-    --exclude=".env" --exclude=".env.*" \
-    -r "$SCAN_DIR" 2>/dev/null | grep -v "/.git/" | head -20)
+    "$pattern" "$SCAN_DIR" 2>/dev/null | head -20)
   if [ -n "$results" ]; then
     log_critical "Pattern suspect trouvé: $pattern"
     echo "- ❌ **Pattern malveillant** : \`$pattern\`" >> "$REPORT"
@@ -44,10 +49,11 @@ done < /sentinel/iocs/malicious_patterns.txt
 
 # --- Caractères Unicode invisibles (GlassWorm) ---
 echo "-- Caractères Unicode invisibles --"
-unicode_results=$(grep -rPl '[\x{200B}-\x{200F}\x{2028}-\x{202F}\x{2060}-\x{206F}\x{FEFF}]' \
+# shellcheck disable=SC2086
+unicode_results=$(grep -rPl $GREP_EXCLUDE \
   --include="*.js" --include="*.ts" --include="*.py" \
-  --exclude=".env" --exclude=".env.*" \
-  "$SCAN_DIR" 2>/dev/null | grep -v "/.git/\|/node_modules/" | head -20)
+  '[\x{200B}-\x{200F}\x{2028}-\x{202F}\x{2060}-\x{206F}\x{FEFF}]' \
+  "$SCAN_DIR" 2>/dev/null | head -20)
 if [ -n "$unicode_results" ]; then
   log_critical "Caractères Unicode invisibles détectés (technique GlassWorm)"
   echo "- ❌ **Unicode invisibles** (GlassWorm)" >> "$REPORT"
@@ -60,8 +66,8 @@ echo "-- Vérification hashes malveillants --"
 while IFS= read -r hash; do
   [ -z "$hash" ] && continue
   [[ "$hash" =~ ^# ]] && continue
-  results=$(find "$SCAN_DIR" -type f \( -name "*.js" -o -name "*.py" \) -not -path "*/.git/*" \
-    -not -name ".env" -not -name ".env.*" \
+  results=$(find "$SCAN_DIR" -type f \( -name "*.js" -o -name "*.py" \) \
+    "${FIND_EXCLUDE[@]}" \
     -exec sha256sum {} \; 2>/dev/null | grep "^$hash" | head -5)
   if [ -n "$results" ]; then
     log_critical "Hash malveillant trouvé: $hash"
