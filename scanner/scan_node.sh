@@ -2,7 +2,7 @@
 # Arguments: $1=PROJECT_DIR $2=REPORT_FILE
 PROJ="$1"
 REPORT="$2"
-PROJ_NAME=$(basename "$PROJ")
+PROJ_NAME=$(echo "$PROJ" | sed "s|^/projects/||")
 
 echo "-- Scan Node.js: $PROJ_NAME --"
 echo "### $PROJ_NAME (Node.js)" >> "$REPORT"

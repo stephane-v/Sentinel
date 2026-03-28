@@ -2,7 +2,7 @@
 # Arguments: $1=PROJECT_DIR $2=REPORT_FILE
 PROJ="$1"
 REPORT="$2"
-PROJ_NAME=$(basename "$PROJ")
+PROJ_NAME=$(echo "$PROJ" | sed "s|^/projects/||")
 
 echo "-- Scan Python: $PROJ_NAME --"
 echo "### $PROJ_NAME (Python)" >> "$REPORT"
@@ -41,7 +41,10 @@ for req in "$PROJ"/requirements*.txt; do
   unpinned=$(echo "$unpinned" | tail -1)
   if [ "$unpinned" -gt 0 ]; then
     log_warning "[$PROJ_NAME] $unpinned dépendances non pinnées (>=, ~=) dans $(basename "$req")"
-    echo "- ⚠️ **$unpinned dépendances non pinnées** dans \`$(basename "$req")\`" >> "$REPORT"
+    echo "- ⚠️ **$unpinned dépendances non pinnées** dans \`$(basename "$req")\` :" >> "$REPORT"
+    grep -v -E "^#|^$|^-|==" "$req" 2>/dev/null | grep -E "[>=~]" 2>/dev/null | while read -r dep; do
+      echo "  - \`$dep\`" >> "$REPORT"
+    done || true
   fi
 done
 
