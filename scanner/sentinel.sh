@@ -1,5 +1,5 @@
 #!/bin/bash
-set -euo pipefail
+set -uo pipefail
 
 # === Configuration ===
 # SECURITY: .env files are excluded from ALL scans by design.
