@@ -33,15 +33,42 @@ Scanner Docker autonome qui detecte les vulnerabilites connues (CVE), les paquet
 ```bash
 git clone <repo-url> sentinel
 cd sentinel
+cp .env.example .env
+# Editer .env avec vos chemins et preferences
 docker compose build
 ```
 
-## Utilisation
+## Configuration
 
-### Scanner tous les projets d'un repertoire
+Copier `.env.example` en `.env` et adapter :
 
 ```bash
-PROJECTS_DIR=/home/user/projects docker compose run --rm sentinel
+cp .env.example .env
+```
+
+```ini
+# Repertoire des projets a scanner (chemin absolu)
+PROJECTS_DIR=/home/user/projects
+
+# Repertoires a exclure (separes par des virgules)
+EXCLUDE_DIRS=sentinel
+
+# Seuil minimum : low, medium, high, critical
+SEVERITY_MIN=medium
+
+# UID/GID pour les permissions des rapports
+UID=1000
+GID=1000
+```
+
+Le fichier `.env` est ignore par git (contient des chemins locaux).
+
+## Utilisation
+
+### Scanner tous les projets
+
+```bash
+docker compose run --rm sentinel
 ```
 
 ### Scanner un sous-repertoire specifique
@@ -53,7 +80,13 @@ docker compose run --rm sentinel scan /projects/mon-projet
 ### Scanner avec seuil critique uniquement
 
 ```bash
-PROJECTS_DIR=/home/user/projects SEVERITY_MIN=critical docker compose run --rm sentinel
+SEVERITY_MIN=critical docker compose run --rm sentinel
+```
+
+### Exclure des repertoires du scan
+
+```bash
+EXCLUDE_DIRS=sentinel,old-project,archive docker compose run --rm sentinel
 ```
 
 ### Mettre a jour les bases CVE
@@ -62,25 +95,14 @@ PROJECTS_DIR=/home/user/projects SEVERITY_MIN=critical docker compose run --rm s
 docker compose run --rm sentinel update
 ```
 
-## Permissions
-
-Le conteneur utilise un utilisateur non-root. Pour que les rapports soient ecrits correctement, passez votre UID/GID :
-
-```bash
-UID=$(id -u) GID=$(id -g) PROJECTS_DIR=/home/user/projects docker compose run --rm sentinel
-```
-
-Ou creez le repertoire `reports/` avec les bonnes permissions avant le premier lancement :
-
-```bash
-mkdir -p reports data
-```
+Les variables passees en ligne de commande surchargent celles du `.env`.
 
 ## Variables d'environnement
 
 | Variable | Defaut | Description |
 |----------|--------|-------------|
 | `PROJECTS_DIR` | `/home/user/projects` | Repertoire des projets a scanner |
+| `EXCLUDE_DIRS` | `sentinel` | Repertoires a exclure (separes par des virgules) |
 | `SCAN_DEPTH` | `4` | Profondeur max de recherche de fichiers |
 | `SEVERITY_MIN` | `medium` | Seuil minimum : `low`, `medium`, `high`, `critical` |
 | `REPORT_FORMAT` | `md` | Format du rapport : `md` ou `json` |
@@ -103,6 +125,8 @@ Les rapports sont generes dans `./reports/` avec le format `sentinel-YYYY-MM-DD_
 
 ```
 sentinel/
+├── .env.example                # Configuration par defaut (a copier en .env)
+├── .gitignore
 ├── docker-compose.yml          # Lance le scanner
 ├── Dockerfile                  # Image multi-stage (3 stages)
 ├── scanner/

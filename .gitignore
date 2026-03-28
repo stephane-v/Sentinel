@@ -1,7 +1,10 @@
-# Rapports générés
+# Configuration locale
+.env
+
+# Rapports generes
 reports/*.md
 !reports/.gitkeep
 
-# Bases CVE téléchargées
+# Bases CVE telechargees
 data/*
 !data/.gitkeep
