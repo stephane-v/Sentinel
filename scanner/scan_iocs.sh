@@ -104,16 +104,23 @@ if [ -n "$unicode_text" ]; then
   IOC_COUNT=$((IOC_COUNT + 1))
 fi
 
-# Pass 2 : fichiers binaires — probable faux-positif mais signale
+# Pass 2 : fichiers binaires courants (<10MB) — probable faux-positif mais signale
+# On utilise find+grep par fichier au lieu de grep -r pour eviter de bloquer sur les gros fichiers
+unicode_binary=""
 # shellcheck disable=SC2086
-unicode_binary=$(grep -rPl \
-  $UNICODE_GREP_BASE \
-  "$UNICODE_PATTERN" \
-  "$SCAN_DIR" 2>/dev/null | head -20 || true)
-# Retirer les fichiers texte deja trouves pour ne garder que les binaires
-if [ -n "$unicode_text" ] && [ -n "$unicode_binary" ]; then
-  unicode_binary=$(echo "$unicode_binary" | grep -vxF "$unicode_text" || true)
-fi
+while IFS= read -r bf; do
+  if grep -Pq "$UNICODE_PATTERN" "$bf" 2>/dev/null; then
+    unicode_binary="${unicode_binary}${bf}"$'\n'
+  fi
+done < <(find "$SCAN_DIR" -maxdepth "$DEPTH" -type f \
+  \( -name "*.png" -o -name "*.jpg" -o -name "*.gif" -o -name "*.svg" \
+     -o -name "*.woff" -o -name "*.woff2" -o -name "*.ttf" -o -name "*.eot" \
+     -o -name "*.bin" -o -name "*.dat" -o -name "*.so" -o -name "*.dll" \
+     -o -name "*.pdf" -o -name "*.zip" -o -name "*.tar" -o -name "*.gz" \) \
+  $FIND_EXCLUDES \
+  -size -10M \
+  2>/dev/null || true)
+unicode_binary=$(echo "$unicode_binary" | sed '/^$/d' | head -20)
 if [ -n "$unicode_binary" ]; then
   log_warning "Caractères Unicode invisibles dans des fichiers binaires (probable faux-positif)"
   echo "- ⚠️ **Unicode invisibles dans des fichiers binaires** (probable faux-positif)" >> "$REPORT"
