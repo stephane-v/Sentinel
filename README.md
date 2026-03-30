@@ -18,6 +18,7 @@ Standalone Docker scanner that detects known vulnerabilities (CVE), compromised 
 ## Security by design
 
 - `.env` files are **excluded from all scans** — their content (secrets, tokens, API keys) is never read, logged, or sent to external tools
+- **Sentinel scans itself** — no blanket self-exclusion; only `scanner/iocs/` and `scanner/i18n/` (which contain IOC patterns by definition) are filtered
 - Project volume is mounted **read-only** (`:ro`)
 - Container runs as a **non-root user** (`sentinel`)
 - **Multi-stage Docker image** (3 stages) to reduce attack surface
@@ -55,14 +56,18 @@ cp .env.example .env
 # Directory containing projects to scan (absolute path)
 PROJECTS_DIR=/home/user/projects
 
-# Directories to exclude (comma-separated)
-EXCLUDE_DIRS=sentinel
+# Directories to exclude (comma-separated, empty by default)
+# Sentinel's own IOC data files are automatically filtered
+EXCLUDE_DIRS=
 
 # Minimum severity threshold: low, medium, high, critical
 SEVERITY_MIN=medium
 
 # Report language: en or fr
 REPORT_LANG=en
+
+# Auto-update IOCs from public feeds during 'update' command
+IOC_AUTO_UPDATE=true
 
 # UID/GID for report file permissions
 UID=1000
@@ -94,7 +99,7 @@ SEVERITY_MIN=critical docker compose run --rm sentinel
 ### Exclude directories from scan
 
 ```bash
-EXCLUDE_DIRS=sentinel,old-project,archive docker compose run --rm sentinel
+EXCLUDE_DIRS=old-project,archive docker compose run --rm sentinel
 ```
 
 ### Update CVE databases
