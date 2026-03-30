@@ -10,6 +10,15 @@ DEPTH="${SCAN_DEPTH:-4}"
 # === Directories to always exclude (editor/IDE/build artifacts) ===
 EDITOR_DIRS="config/data/User/History:.vscode:.idea:.cursor:__pycache__:.next:.nuxt:dist:build:.cache:coverage"
 
+# === Sentinel's own data files (contain IOC patterns by definition) ===
+_is_sentinel_data() {
+  local f="$1"
+  case "$f" in
+    */scanner/iocs/*|*/scanner/i18n/*) return 0 ;;
+  esac
+  return 1
+}
+
 # === I18N patterns (Unicode false positives) ===
 _is_i18n_file() {
   local f="$1"
@@ -74,6 +83,9 @@ while IFS= read -r pattern; do
         log_filtered "IOC file in IDE directory: $f"
         echo "| \`$f\` | $L_FP_IOC_FILE \`$pattern\` | $L_FP_IDE |" >> "$REPORT_FILTERED"
         COUNT_FILTERED=$((COUNT_FILTERED + 1))
+      elif _is_sentinel_data "$f"; then
+        # Sentinel's own IOC data files — skip silently
+        :
       else
         log_critique "Confirmed IOC file: $pattern → $f"
         echo "- 🚨 **$L_IOC_FILE_CONFIRMED** : \`$pattern\` — \`$f\` — *$(_file_dates "$f")*" >> "$_CRITIQUE_SECTION"
@@ -100,6 +112,10 @@ while IFS= read -r pattern; do
   if [ -n "$results" ]; then
     while IFS= read -r f; do
       [ -z "$f" ] && continue
+      if _is_sentinel_data "$f"; then
+        # Sentinel's own IOC/i18n data — skip silently
+        continue
+      fi
       if _is_editor_path "$f"; then
         log_filtered "Pattern '$pattern' in IDE directory: $f"
         echo "| \`$f\` | $L_FP_PATTERN \`$pattern\` | $L_FP_IDE |" >> "$REPORT_FILTERED"
@@ -149,7 +165,9 @@ unicode_text=$(grep -rPl --binary-files=without-match \
 if [ -n "$unicode_text" ]; then
   while IFS= read -r f; do
     [ -z "$f" ] && continue
-    if _is_editor_path "$f"; then
+    if _is_sentinel_data "$f"; then
+      continue
+    elif _is_editor_path "$f"; then
       log_filtered "Invisible Unicode in IDE directory: $f"
       echo "| \`$f\` | $L_FP_UNICODE | $L_FP_IDE |" >> "$REPORT_FILTERED"
       COUNT_FILTERED=$((COUNT_FILTERED + 1))

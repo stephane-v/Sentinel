@@ -9,7 +9,7 @@ REPORTS_DIR="/reports"
 DATA_DIR="/data"
 SCAN_DEPTH="${SCAN_DEPTH:-4}"
 SEVERITY_MIN="${SEVERITY_MIN:-medium}"
-EXCLUDE_DIRS="${EXCLUDE_DIRS:-sentinel}"
+EXCLUDE_DIRS="${EXCLUDE_DIRS:-}"
 IOC_AUTO_UPDATE="${IOC_AUTO_UPDATE:-true}"
 REPORT_FILE="$REPORTS_DIR/sentinel-$(date +%Y-%m-%d_%H%M%S).md"
 

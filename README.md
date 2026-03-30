@@ -138,7 +138,7 @@ Verdict: ✅ CLEAN — No issues detected.
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `PROJECTS_DIR` | `/home/user/projects` | Directory containing projects to scan |
-| `EXCLUDE_DIRS` | `sentinel` | Directories to exclude (comma-separated) |
+| `EXCLUDE_DIRS` | *(empty)* | Directories to exclude from scan (comma-separated) |
 | `SCAN_DEPTH` | `4` | Maximum search depth in directory tree |
 | `SEVERITY_MIN` | `medium` | Minimum severity threshold: `low`, `medium`, `high`, `critical` |
 | `REPORT_FORMAT` | `md` | Report format: `md` or `json` |

@@ -17,7 +17,7 @@ services:
       - SCAN_DEPTH=${SCAN_DEPTH:-4}
       - REPORT_FORMAT=${REPORT_FORMAT:-md}
       - SEVERITY_MIN=${SEVERITY_MIN:-medium}
-      - EXCLUDE_DIRS=${EXCLUDE_DIRS:-sentinel}
+      - EXCLUDE_DIRS=${EXCLUDE_DIRS:-}
       - REPORT_LANG=${REPORT_LANG:-en}
       - IOC_AUTO_UPDATE=${IOC_AUTO_UPDATE:-true}
     # CLI tool — no web exposure, no Traefik
