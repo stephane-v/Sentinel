@@ -78,6 +78,18 @@ The `.env` file is git-ignored (contains local paths).
 
 ## Usage
 
+### Quick start (recommended)
+
+```bash
+./run.sh
+```
+
+This pulls the latest IOCs from the repository and public feeds, rebuilds the image, updates vulnerability databases, and runs a full scan. Arguments are forwarded to the scanner:
+
+```bash
+./run.sh scan /projects/my-project
+```
+
 ### Scan all projects
 
 ```bash
@@ -173,6 +185,7 @@ sentinel/
 ├── docker-compose.yml          # Runs the scanner
 ├── Dockerfile                  # Multi-stage image (3 stages)
 ├── LICENSE                     # MIT License
+├── run.sh                      # Quick start: pull + build + update + scan
 ├── scanner/
 │   ├── sentinel.sh             # Main script (orchestrator)
 │   ├── scan_python.sh          # Python scan (pip-audit + IOCs)
