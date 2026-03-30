@@ -191,19 +191,6 @@ sentinel/
 └── README.md
 ```
 
-## IOC auto-update
-
-When running `docker compose run --rm sentinel update`, Sentinel automatically fetches the latest malware indicators from public threat intelligence feeds:
-
-- **[OSV.dev](https://osv.dev)** — Google's open vulnerability database. Fetches `MAL-*` advisories (confirmed malware) for npm and PyPI from the last 90 days.
-- **[GitHub Advisory Database](https://github.com/advisories)** — GitHub's security advisories. Fetches advisories classified as `MALWARE` for npm and PyPI.
-
-New entries are merged with existing IOC lists without duplicates. Manual entries are never removed. A backup is created before each update.
-
-Set `IOC_AUTO_UPDATE=false` in `.env` to disable (air-gapped environments).
-
-IOC lists are persisted in the `./data/iocs/` volume so updates survive container rebuilds.
-
 ## Included IOC databases
 
 The IOC lists cover known supply chain attacks:
@@ -213,6 +200,85 @@ The IOC lists cover known supply chain attacks:
 - PyPI typosquatting (termncolor, colorinal, etc.)
 - Exfiltration patterns (webhook.site, C2 domains)
 - Invisible Unicode characters (GlassWorm technique)
+
+## Maintaining IOC databases
+
+### Automatic updates
+
+Running `sentinel update` refreshes three databases:
+
+1. **Grype** vulnerability database (Anchore)
+2. **OSV-Scanner** offline database (Google)
+3. **IOC lists** from public threat intelligence feeds:
+   - [OSV.dev](https://osv.dev) API — advisories prefixed `MAL-` (confirmed malware) for npm and PyPI
+   - [GitHub Advisory Database](https://github.com/advisories) — advisories classified as `MALWARE` for npm and pip
+
+```bash
+docker compose run --rm sentinel update
+```
+
+Updated IOCs are written directly to `scanner/iocs/` (bind-mounted read-write). You can review and commit:
+
+```bash
+git diff scanner/iocs/
+git add scanner/iocs/
+git commit -m "chore: update IOC feeds $(date +%Y-%m-%d)"
+git push
+```
+
+Set `IOC_AUTO_UPDATE=false` in `.env` to disable feeds (air-gapped environments).
+
+### Manual contributions
+
+Each IOC file has a specific format:
+
+| File | Format | Example |
+|------|--------|---------|
+| `compromised_npm.txt` | `package@version` | `@ctrl/tinycolor@4.1.1` |
+| `compromised_pypi.txt` | `package@version` | `litellm@1.82.7` |
+| `malicious_files.txt` | filename (one per line) | `setup_bun.js` |
+| `malicious_patterns.txt` | grep pattern (one per line) | `Shai-Hulud` |
+| `malicious_hashes.txt` | SHA-256 hash (one per line) | `de0e25a3e6c1...` |
+
+Lines starting with `#` are comments. To contribute: fork the repo, add entries to the relevant file, keep it sorted, and submit a pull request with a reference to the advisory.
+
+### When a new attack is disclosed
+
+1. **Find the IOCs** — check the advisory for: compromised package names and versions, malicious filenames, SHA-256 hashes, grep patterns, exfiltration domains
+2. **Add to the right file** — each IOC type goes in its specific file
+3. **Test** — run Sentinel against a known-clean project to verify no false positives
+4. **Submit** — open a PR or push directly
+
+Example — adding Shai-Hulud v2 IOCs:
+
+```
+# compromised_npm.txt
+posthog-js@1.96.1
+
+# malicious_files.txt
+setup_bun.js
+bun_environment.js
+
+# malicious_patterns.txt
+Sha1-Hulud: The Second Coming
+
+# malicious_hashes.txt
+de0e25a3e6c1e1e5998b306b7141b3dc4c0088da9d7bb47c1c00c91e6e4f85d6
+```
+
+### Update schedule
+
+- **Before each build session**: `sentinel update` then `sentinel scan`
+- **Weekly** at minimum if not actively building
+- **Immediately** after a major supply chain attack is disclosed
+
+### Verifying database freshness
+
+The report header shows the Grype DB date (`Grype DB: 2026-03-28`). For IOC files, check git history:
+
+```bash
+git log --oneline scanner/iocs/
+```
 
 ## Alternatives and positioning
 
