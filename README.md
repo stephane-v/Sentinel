@@ -215,8 +215,9 @@ The IOC lists cover known supply chain attacks:
 - **Shai-Hulud** v1/v2 (npm, Sept 2025)
 - **LiteLLM TeamPCP** (PyPI, March 2026)
 - **Cline CLI** compromised (npm, Feb 2026)
+- **Axios** supply chain attack (npm, March 2026) — compromised axios@1.14.1/0.30.4, plain-crypto-js, @shadanai/openclaw
 - PyPI typosquatting (termncolor, colorinal, etc.)
-- Exfiltration patterns (webhook.site, C2 domains)
+- Exfiltration patterns (webhook.site, C2 domains, sfrclak.com)
 - Invisible Unicode characters (GlassWorm technique)
 
 ## Maintaining IOC databases

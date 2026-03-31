@@ -16,3 +16,9 @@ tpcp-docs
 # Domaines C2 connus
 checkmarx.zone
 models.litellm.cloud
+# Axios supply chain attack (mars 2026)
+plain-crypto-js
+sfrclak\.com
+OrDeR_7077
+nrwise@proton.me
+ifstap@proton.me
