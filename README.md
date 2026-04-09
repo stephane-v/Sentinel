@@ -4,7 +4,7 @@
 ![Docker](https://img.shields.io/badge/Docker-required-blue.svg)
 ![Shell](https://img.shields.io/badge/Written%20in-Bash-orange.svg)
 
-Standalone Docker scanner that detects known vulnerabilities (CVE), compromised packages (supply chain attacks), and security misconfigurations in your projects.
+Standalone Docker scanner that detects known vulnerabilities (CVE), compromised packages (supply chain attacks), leaked secrets, and security misconfigurations in your projects.
 
 ## Features
 
@@ -19,6 +19,7 @@ Standalone Docker scanner that detects known vulnerabilities (CVE), compromised 
 ## Security by design
 
 - `.env` files are **excluded from all scans** — their content (secrets, tokens, API keys) is never read, logged, or sent to external tools
+- **Secrets are never logged in clear** — TruffleHog findings show only the detector type, file, line, and commit; raw secret values are never written to stdout, reports, or Docker logs
 - **Sentinel scans itself** — no blanket self-exclusion; only `scanner/iocs/` and `scanner/i18n/` (which contain IOC patterns by definition) are filtered
 - Project volume is mounted **read-only** (`:ro`)
 - Container runs as a **non-root user** (`sentinel`)
@@ -70,6 +71,12 @@ REPORT_LANG=en
 
 # Auto-update IOCs from public feeds during 'update' command
 IOC_AUTO_UPDATE=true
+
+# Secrets scanning (TruffleHog)
+SKIP_SECRETS=false          # Set to 'true' to disable secrets scan
+SECRETS_MODE=verified       # 'verified' (active only) or 'full' (all)
+# SECRETS_MAX_DEPTH=50      # Limit git history depth
+SECRETS_TIMEOUT=300         # Timeout in seconds (5 min default)
 
 # UID/GID for report file permissions
 UID=1000
@@ -241,6 +248,9 @@ sentinel/
 │   │   └── malicious_hashes.txt    # SHA-256 hashes of known payloads
 │   └── templates/
 │       └── report.md.tpl       # Report template
+├── tests/
+│   └── fixtures/
+│       └── secrets/            # Fake secrets for TruffleHog testing
 ├── reports/                    # Generated reports (persisted via volume)
 ├── data/                       # CVE databases (persisted via volume)
 └── README.md
@@ -342,12 +352,12 @@ Sentinel does not replace existing security tools — it complements them.
 
 Most supply chain security tools fall into two categories: **CVE scanners** (osv-scanner, Snyk, npm audit) that detect known vulnerabilities after they are published, and **install-time protectors** (Socket.dev, SafeDep PMG, Aikido Safe Chain) that block malicious packages before they enter your project. Sentinel occupies a different niche: **post-incident forensics and Docker security audit**. It answers the question _"have my existing projects been compromised?"_ rather than _"will this new package compromise me?"_.
 
-Sentinel scans your project directories for traces of known supply chain attacks — IOC files, malicious patterns, compromised package versions, invisible Unicode characters — and also audits your Dockerfiles for secret exposure, missing USER directives, and single-stage builds. Everything runs locally in a hardened Docker container. No data leaves your machine.
+Sentinel scans your project directories for traces of known supply chain attacks — IOC files, malicious patterns, compromised package versions, invisible Unicode characters — and also audits your Dockerfiles for secret exposure, missing USER directives, and single-stage builds. It additionally scans for leaked secrets (API keys, tokens, passwords) in code and git history via TruffleHog. Everything runs locally in a hardened Docker container. No data leaves your machine.
 
 It is designed for independent developers and small teams who deploy on their own infrastructure, without GitHub Actions, cloud SaaS, or CI/CD pipelines.
 
 For comprehensive protection, consider combining:
-1. **Sentinel** — forensic scan of existing projects + Dockerfile audit + IOC detection
+1. **Sentinel** — forensic scan of existing projects + Dockerfile audit + IOC detection + secrets scanning
 2. **osv-scanner** or **npm audit / pip-audit** — known CVE detection (Sentinel already embeds these)
 3. **Socket.dev**, **SafeDep PMG**, or **Aikido Safe Chain** — proactive install-time protection
 
@@ -359,6 +369,7 @@ For comprehensive protection, consider combining:
 | Zero-day malware detection | ❌ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ |
 | Campaign IOC detection | ✅ Shai-Hulud, LiteLLM, Cline, GlassWorm | ⚠️ partial | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ Shai-Hulud only |
 | Behavioral analysis | ❌ | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ |
+| Secrets/credential scanning | ✅ via TruffleHog (verified + unverified) | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
 | Dockerfile/secrets audit | ✅ | ❌ | ❌ | ⚠️ containers | ❌ | ❌ | ❌ | ❌ |
 | Install-time protection | ❌ | ✅ sfw | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ |
 | Unicode steganography | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
@@ -395,6 +406,7 @@ Features not yet implemented:
 | pip-audit | https://github.com/pypa/pip-audit |
 | Aikido Safe Chain | https://github.com/AikidoSec/safe-chain |
 | SafeDep PMG | https://github.com/safedep/pmg |
+| TruffleHog | https://github.com/trufflesecurity/trufflehog |
 | shai-hulud-scanner | https://github.com/Drasrax/npm-shai-hulud-scanner |
 
 ## Contributing
