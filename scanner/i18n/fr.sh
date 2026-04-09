@@ -83,6 +83,18 @@ L_SECRET_EXPOSED="secret exposé pendant le build"
 L_NON_SENSITIVE="variable non sensible"
 L_TO_VERIFY="à vérifier"
 
+# Secrets scan (TruffleHog)
+L_SECRETS_SCAN="Scan de secrets (TruffleHog)"
+L_SECRETS_VERIFIED="Secrets vérifiés (actifs)"
+L_SECRETS_UNVERIFIED="Secrets non vérifiés"
+L_SECRETS_NONE="Aucun secret détecté."
+L_SECRETS_RECOMMENDED="Actions recommandées"
+L_SECRETS_ROTATE="Effectuer une rotation immédiate de tous les secrets CRITIQUES"
+L_SECRETS_REVIEW="Vérifier les findings HIGH pour les faux positifs"
+L_SECRETS_IGNORE="Ajouter les faux positifs confirmés à .trufflehogignore"
+L_VERIFIED_SECRETS="Secrets vérifiés (actifs)"
+L_UNVERIFIED_SECRETS="Secrets non vérifiés"
+
 # False positives
 L_FP_SECTION="Faux positifs filtrés"
 L_FP_INTRO="Ces fichiers ont déclenché une règle de détection mais ont été identifiés comme des faux positifs par les filtres Sentinel. Listés ici pour transparence."

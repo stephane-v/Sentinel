@@ -12,6 +12,7 @@ Standalone Docker scanner that detects known vulnerabilities (CVE), compromised 
 - **Python scan** : compromised PyPI packages, unpinned dependencies, CVEs via pip-audit, osv-scanner and Grype
 - **Node.js scan** : compromised npm packages, suspicious install scripts, CVEs via npm audit, osv-scanner and Grype
 - **Docker analysis** : secrets in Dockerfile (ARG/ENV), sensitive files copied, missing non-root USER, single-stage builds, build.args secrets detection
+- **Secrets scanning** : leaked API keys, tokens and passwords in code and git history via TruffleHog (verified + unverified)
 - **4-level verdict system** : CLEAN / INFO / ATTENTION / CRITICAL with smart false positive filtering
 - **Markdown report** generated automatically with summary table and exit code
 
@@ -33,6 +34,7 @@ Standalone Docker scanner that detects known vulnerabilities (CVE), compromised 
 | [osv-scanner](https://github.com/google/osv-scanner) | Multi-ecosystem (Google OSV database) |
 | [grype](https://github.com/anchore/grype) | Vulnerability scanner (Anchore database) |
 | npm audit | Built-in Node.js vulnerability scanner |
+| [TruffleHog](https://github.com/trufflesecurity/trufflehog) | Secrets scanner (API keys, tokens, passwords) |
 
 ## Installation
 
@@ -128,6 +130,30 @@ REPORT_LANG=fr docker compose run --rm sentinel
 
 Command-line variables override `.env` values.
 
+### Secrets scanning
+
+Sentinel includes [TruffleHog](https://github.com/trufflesecurity/trufflehog) for detecting leaked secrets (API keys, tokens, passwords) in your codebase and git history.
+
+By default, only **verified** (active) secrets are reported. To scan for all potential secrets:
+
+```bash
+SECRETS_MODE=full ./run.sh scan /projects/my-project
+```
+
+To skip secrets scanning entirely (supply-chain-only scan):
+
+```bash
+SKIP_SECRETS=true ./run.sh scan /projects/my-project
+```
+
+To limit git history depth (useful for large repositories):
+
+```bash
+SECRETS_MAX_DEPTH=50 ./run.sh scan /projects/my-project
+```
+
+You can exclude paths from secrets scanning by creating a `.trufflehogignore` file in your project root, or by editing the global exclusions in `scanner/config/trufflehog-ignore.txt`.
+
 ## Example output
 
 ```
@@ -144,6 +170,8 @@ Verdict: ✅ CLEAN — No issues detected.
 | Suspicious Unicode (source code) | ✅ 0 found                          |
 | Suspicious patterns in code      | ✅ 0 found                          |
 | Secrets in build.args            | ✅ 0 found                          |
+| Verified secrets (active)        | ✅ 0 found                          |
+| Unverified secrets               | ✅ 0 found                          |
 | Unpinned dependencies            | 💡 ~45 across 8 projects            |
 | Dockerfiles without USER         | 💡 3 file(s)                        |
 | Single-stage builds              | 💡 2 file(s)                        |
@@ -161,6 +189,11 @@ Verdict: ✅ CLEAN — No issues detected.
 | `REPORT_FORMAT` | `md` | Report format: `md` or `json` |
 | `REPORT_LANG` | `en` | Report language: `en` or `fr` |
 | `IOC_AUTO_UPDATE` | `true` | Auto-update IOCs from public feeds (OSV.dev, GitHub Advisories) |
+| `SKIP_SECRETS` | `false` | Skip TruffleHog secrets scanning entirely |
+| `SECRETS_MODE` | `verified` | Secrets scan mode: `verified` (only active secrets) or `full` (all potential secrets) |
+| `SECRETS_MAX_DEPTH` | *(empty)* | Limit git history depth for secrets scan |
+| `SECRETS_SINCE_COMMIT` | *(empty)* | Scan git history only since this commit |
+| `SECRETS_TIMEOUT` | `300` | Timeout in seconds for secrets scan (default: 5 minutes) |
 | `UID` | `1000` | Container user UID |
 | `GID` | `1000` | Container user GID |
 
@@ -193,6 +226,10 @@ sentinel/
 │   ├── scan_docker.sh          # Dockerfile + docker-compose analysis
 │   ├── scan_iocs.sh            # IOC search (supply chain indicators)
 │   ├── update_iocs.sh          # Auto-update IOCs from public feeds
+│   ├── modules/
+│   │   └── trufflehog.sh       # Secrets scan (TruffleHog)
+│   ├── config/
+│   │   └── trufflehog-ignore.txt  # Global TruffleHog exclusions
 │   ├── i18n/
 │   │   ├── en.sh               # English translations (default)
 │   │   └── fr.sh               # French translations

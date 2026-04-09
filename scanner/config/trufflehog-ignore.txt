@@ -1,0 +1,57 @@
+# Sentinel global TruffleHog exclusions
+# These paths are excluded from all secrets scans
+
+# Sentinel's own IOC data files (contain patterns, not real secrets)
+scanner/iocs/
+iocs/
+
+# Sentinel i18n files
+scanner/i18n/
+i18n/
+
+# Test fixtures (contain intentionally fake secrets)
+tests/fixtures/
+test/fixtures/
+
+# Common false positive patterns
+# Documentation and example files
+*.md
+*.rst
+*.txt
+docs/
+documentation/
+
+# Lock files and generated files
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+poetry.lock
+Pipfile.lock
+go.sum
+Gemfile.lock
+
+# Binary and media files
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.ico
+*.svg
+*.woff
+*.woff2
+*.ttf
+*.eot
+*.pdf
+*.zip
+*.tar.gz
+
+# IDE directories
+.vscode/
+.idea/
+.cursor/
+
+# Node modules and virtual environments
+node_modules/
+venv/
+.venv/
+__pycache__/

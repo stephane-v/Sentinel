@@ -20,6 +20,11 @@ services:
       - EXCLUDE_DIRS=${EXCLUDE_DIRS:-}
       - REPORT_LANG=${REPORT_LANG:-en}
       - IOC_AUTO_UPDATE=${IOC_AUTO_UPDATE:-true}
+      - SKIP_SECRETS=${SKIP_SECRETS:-false}
+      - SECRETS_MODE=${SECRETS_MODE:-verified}
+      - SECRETS_MAX_DEPTH=${SECRETS_MAX_DEPTH:-}
+      - SECRETS_SINCE_COMMIT=${SECRETS_SINCE_COMMIT:-}
+      - SECRETS_TIMEOUT=${SECRETS_TIMEOUT:-300}
     # CLI tool — no web exposure, no Traefik
     # Network access needed only for CVE database updates
     networks:
