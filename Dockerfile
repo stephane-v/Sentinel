@@ -16,6 +16,13 @@ RUN ARCH=$(uname -m) && \
 # grype (Anchore — scanner de vulnérabilités)
 RUN curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
 
+# TruffleHog — secrets scanner
+ARG TRUFFLEHOG_VERSION=3.88.26
+RUN curl -sSfL "https://github.com/trufflesecurity/trufflehog/releases/download/v${TRUFFLEHOG_VERSION}/trufflehog_${TRUFFLEHOG_VERSION}_linux_amd64.tar.gz" \
+    | tar -xzf - -C /usr/local/bin trufflehog \
+    && chmod +x /usr/local/bin/trufflehog \
+    && trufflehog --version
+
 # === Stage 2: Dépendances Python ===
 FROM python:3.12-alpine AS python-deps
 
@@ -33,6 +40,7 @@ RUN apk add --no-cache \
 # Copier les binaires depuis le stage downloader
 COPY --from=downloader /usr/local/bin/osv-scanner /usr/local/bin/osv-scanner
 COPY --from=downloader /usr/local/bin/grype /usr/local/bin/grype
+COPY --from=downloader /usr/local/bin/trufflehog /usr/local/bin/trufflehog
 
 # Copier pip-audit depuis le stage python-deps
 COPY --from=python-deps /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
@@ -48,7 +56,8 @@ RUN mkdir -p /reports /data /projects && \
 # --- Structure ---
 WORKDIR /sentinel
 COPY scanner/ /sentinel/
-RUN chmod +x /sentinel/*.sh
+RUN chmod +x /sentinel/*.sh && \
+    ([ -d /sentinel/modules ] && chmod +x /sentinel/modules/*.sh || true)
 
 USER sentinel
 

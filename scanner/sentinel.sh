@@ -77,6 +77,8 @@ SUMMARY_SINGLE_STAGE=0
 SUMMARY_BUILD_ARGS_SECRET=0
 SUMMARY_BUILD_ARGS_SAFE=0
 SUMMARY_VULN_GRYPE=0
+SUMMARY_SECRETS_VERIFIED=0
+SUMMARY_SECRETS_UNVERIFIED=0
 
 # Grype availability
 GRYPE_AVAILABLE=0
@@ -222,6 +224,23 @@ case "${1:-scan}" in
     echo "=== Phase 5: Docker security ==="
     source /sentinel/scan_docker.sh "$PROJECTS_DIR" "$REPORT_BODY"
 
+    # === Phase 6: Secrets scan (TruffleHog) ===
+    if [ "${SKIP_SECRETS:-false}" != "true" ]; then
+      echo ""
+      echo "=== Phase 6: Secrets scan (TruffleHog) ==="
+      source /sentinel/modules/trufflehog.sh
+      run_trufflehog_scan "$PROJECTS_DIR" "$REPORT_BODY"
+      TRUFFLEHOG_EXIT=$?
+      if [ $TRUFFLEHOG_EXIT -eq 2 ]; then
+        log_critique "VERIFIED secrets found — immediate rotation required"
+      elif [ $TRUFFLEHOG_EXIT -eq 1 ]; then
+        log_attention "Potential secrets detected (unverified)"
+      fi
+    else
+      echo ""
+      echo "=== Phase 6: Secrets scan — SKIPPED (SKIP_SECRETS=true) ==="
+    fi
+
     # === Assemble final report ===
     case "$VERDICT" in
       CRITIQUE)  VERDICT_LABEL="🚨 **$L_VERDICT_CRITICAL**" ;;
@@ -252,6 +271,8 @@ case "${1:-scan}" in
 | $L_UNICODE_SUSPECT | $([ "$SUMMARY_UNICODE_SOURCE" -gt 0 ] && echo "⚠️ $SUMMARY_UNICODE_SOURCE $L_FILES_TO_VERIFY" || echo "✅ 0 $L_FOUND") |
 | $L_PATTERNS_SUSPECT | $([ "$SUMMARY_PATTERN_SUSPECT" -gt 0 ] && echo "⚠️ $SUMMARY_PATTERN_SUSPECT $L_PATTERN_S" || echo "✅ 0 $L_FOUND") |
 | $L_SECRETS_BUILD | $([ "$SUMMARY_BUILD_ARGS_SECRET" -gt 0 ] && echo "⚠️ $SUMMARY_BUILD_ARGS_SECRET $L_FILES" || echo "✅ 0 $L_FOUND") |
+| $L_VERIFIED_SECRETS | $([ "$SUMMARY_SECRETS_VERIFIED" -gt 0 ] && echo "🚨 $SUMMARY_SECRETS_VERIFIED $L_FOUND" || echo "✅ 0 $L_FOUND") |
+| $L_UNVERIFIED_SECRETS | $([ "$SUMMARY_SECRETS_UNVERIFIED" -gt 0 ] && echo "⚠️ $SUMMARY_SECRETS_UNVERIFIED $L_FOUND" || echo "✅ 0 $L_FOUND") |
 | $L_UNPINNED_DEPS | $([ "$SUMMARY_UNPINNED" -gt 0 ] && echo "💡 ~$SUMMARY_UNPINNED $L_ACROSS ${#PYTHON_PROJECTS[@]} $L_PROJECTS" || echo "✅ $L_ALL_PINNED") |
 | $L_NO_USER | $([ "$SUMMARY_NO_USER" -gt 0 ] && echo "💡 $SUMMARY_NO_USER $L_FILES" || echo "✅ $L_ALL_WITH_USER") |
 | $L_SINGLE_STAGE | $([ "$SUMMARY_SINGLE_STAGE" -gt 0 ] && echo "💡 $SUMMARY_SINGLE_STAGE $L_FILES" || echo "✅ $L_ALL_MULTISTAGE") |
