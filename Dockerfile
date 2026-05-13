@@ -23,6 +23,16 @@ RUN curl -sSfL "https://github.com/trufflesecurity/trufflehog/releases/download/
     && chmod +x /usr/local/bin/trufflehog \
     && trufflehog --version
 
+# yq — YAML processor (needed by shai-hulud module for pnpm-lock.yaml and yarn.lock v2+)
+RUN ARCH=$(uname -m) && \
+    case "$ARCH" in \
+      x86_64) ARCH="amd64" ;; \
+      aarch64) ARCH="arm64" ;; \
+    esac && \
+    curl -sSfL "https://github.com/mikefarah/yq/releases/latest/download/yq_linux_${ARCH}" \
+      -o /usr/local/bin/yq && \
+    chmod +x /usr/local/bin/yq
+
 # === Stage 2: Dépendances Python ===
 FROM python:3.12-alpine AS python-deps
 
@@ -41,6 +51,7 @@ RUN apk add --no-cache \
 COPY --from=downloader /usr/local/bin/osv-scanner /usr/local/bin/osv-scanner
 COPY --from=downloader /usr/local/bin/grype /usr/local/bin/grype
 COPY --from=downloader /usr/local/bin/trufflehog /usr/local/bin/trufflehog
+COPY --from=downloader /usr/local/bin/yq /usr/local/bin/yq
 
 # Copier pip-audit depuis le stage python-deps
 COPY --from=python-deps /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages

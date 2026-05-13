@@ -79,6 +79,10 @@ SUMMARY_BUILD_ARGS_SAFE=0
 SUMMARY_VULN_GRYPE=0
 SUMMARY_SECRETS_VERIFIED=0
 SUMMARY_SECRETS_UNVERIFIED=0
+SUMMARY_SHAI_HULUD_PKGS=0
+SUMMARY_SHAI_HULUD_ARTIFACTS=0
+SUMMARY_SHAI_HULUD_DAEMONS=0
+SUMMARY_SHAI_HULUD_DOMAINS=0
 
 # Grype availability
 GRYPE_AVAILABLE=0
@@ -241,6 +245,20 @@ case "${1:-scan}" in
       echo "=== Phase 6: Secrets scan — SKIPPED (SKIP_SECRETS=true) ==="
     fi
 
+    # === Phase 7: Shai-Hulud (CVE-2026-45321) ===
+    echo ""
+    echo "=== Phase 7: Shai-Hulud scan (CVE-2026-45321) ==="
+    source /sentinel/modules/shai-hulud/scan.sh
+    run_shai_hulud_scan "$PROJECTS_DIR" "$REPORT_BODY"
+    _SH_EXIT=$?
+    if [ "$_SH_EXIT" -ge 3 ]; then
+      log_critique "Compromised Shai-Hulud packages in lockfiles — rotate credentials now (CVE-2026-45321)"
+    elif [ "$_SH_EXIT" -eq 2 ]; then
+      log_attention "Shai-Hulud runtime artifacts or persistence daemons detected"
+    elif [ "$_SH_EXIT" -eq 1 ]; then
+      log_info "Shai-Hulud C2 domains not blocked — verify network defenses"
+    fi
+
     # === Assemble final report ===
     case "$VERDICT" in
       CRITIQUE)  VERDICT_LABEL="🚨 **$L_VERDICT_CRITICAL**" ;;
@@ -277,6 +295,7 @@ case "${1:-scan}" in
 | $L_NO_USER | $([ "$SUMMARY_NO_USER" -gt 0 ] && echo "💡 $SUMMARY_NO_USER $L_FILES" || echo "✅ $L_ALL_WITH_USER") |
 | $L_SINGLE_STAGE | $([ "$SUMMARY_SINGLE_STAGE" -gt 0 ] && echo "💡 $SUMMARY_SINGLE_STAGE $L_FILES" || echo "✅ $L_ALL_MULTISTAGE") |
 | $L_FALSE_POSITIVES | $([ "$COUNT_FILTERED" -gt 0 ] && echo "⚪ $COUNT_FILTERED $L_FILES (binary/i18n/IDE)" || echo "⚪ 0") |
+| Shai-Hulud packages (CVE-2026-45321) | $([ "$SUMMARY_SHAI_HULUD_PKGS" -gt 0 ] && echo "🚨 $SUMMARY_SHAI_HULUD_PKGS $L_FOUND" || echo "✅ 0 $L_FOUND") |
 
 ---
 
@@ -327,8 +346,23 @@ FILTERED_HEADER
     exit $EXIT_CODE
     ;;
 
+  --module)
+    _sh_mod="${2:-}"
+    _sh_path="${3:-/projects}"
+    if [ -z "$_sh_mod" ]; then
+      echo "Usage: sentinel.sh --module <name> [directory]"
+      exit 1
+    fi
+    _sh_script="$(dirname "$0")/modules/$_sh_mod/scan.sh"
+    if [ ! -f "$_sh_script" ]; then
+      echo "ERROR: Module '$_sh_mod' not found at $_sh_script"
+      exit 1
+    fi
+    exec bash "$_sh_script" "$_sh_path"
+    ;;
+
   *)
-    echo "Usage: sentinel.sh [scan|update] [directory]"
+    echo "Usage: sentinel.sh [scan|update|--module <name>] [directory]"
     exit 1
     ;;
 esac

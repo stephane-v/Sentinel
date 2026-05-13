@@ -216,6 +216,39 @@ Verdict: ✅ CLEAN — No issues detected.
 
 Reports are generated in `./reports/` with the format `sentinel-YYYY-MM-DD_HHMMSS.md`.
 
+## Shai-Hulud detection (CVE-2026-45321)
+
+Sentinel includes a dedicated module for detecting the **Mini Shai-Hulud** supply chain attack family — 4 waves from Sept 2025 to May 2026, 500+ npm packages compromised, CVSS 9.6. Critically, compromised packages carry **valid SLSA Build Level 3 attestations**, making Sigstore provenance an insufficient trust signal alone.
+
+### Run standalone
+
+```bash
+# Via sentinel.sh (recommended)
+./sentinel.sh --module shai-hulud /path/to/project
+
+# Or directly
+bash scanner/modules/shai-hulud/scan.sh /path/to/project
+```
+
+### What it detects
+
+- Compromised `@tanstack/*`, `@uipath/*`, `@ctrl/*`, and 50+ other packages in `package-lock.json`, `pnpm-lock.yaml`, and `yarn.lock`
+- Runtime artifacts: `router_runtime.js`, `tanstack_runner.js`, signed `bundle.js`
+- Malicious GitHub Actions workflows: `shai-hulud.yaml`
+- Persistence daemons: `gh-token-monitor` LaunchAgent / systemd unit
+- Unblocked C2 domains: `git-tanstack.com`, `*.getsession.org`, `api.masscan.cloud`
+
+### Exit codes (standalone)
+
+| Code | Meaning |
+|------|---------|
+| `0` | CLEAN — no indicators found |
+| `1` | MEDIUM — C2 domains not blocked in network defenses |
+| `2` | HIGH — runtime artifacts or persistence daemons found |
+| `3` | CRITICAL — compromised package present in a lockfile |
+
+For full details, IoC sources, and enrichment procedure: [`scanner/modules/shai-hulud/README.md`](scanner/modules/shai-hulud/README.md)
+
 ## Architecture
 
 ```

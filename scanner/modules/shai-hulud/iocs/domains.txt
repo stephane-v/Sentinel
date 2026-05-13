@@ -1,0 +1,6 @@
+# Shai-Hulud C2 domains — check blocking in /etc/hosts, AdGuard, Pi-hole, CrowdSec
+# Wildcards handled in code: *.getsession.org covered by getsession.org entry
+git-tanstack.com
+getsession.org
+filev2.getsession.org
+api.masscan.cloud
