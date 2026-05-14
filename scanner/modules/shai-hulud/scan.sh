@@ -12,7 +12,11 @@
 #   2 — HIGH: runtime artifacts or persistence daemons found
 #   3 — CRITICAL: compromised package present in a lockfile
 
-set -euo pipefail
+# Apply strict mode only when running standalone — not when sourced by sentinel.sh,
+# because sourcing propagates shell options into the caller's process.
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  set -euo pipefail
+fi
 
 _SHAI_HULUD_MODULE_VERSION="2026-05-13"
 _SHAI_HULUD_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -119,10 +123,10 @@ _shai_hulud_scan_pnpm_lock() {
     local pkg="${ioc_line%@*}"
 
     # pnpm lockfile v6+: keys like "@scope/pkg@version" or "/@scope/pkg@version"
-    local escaped_pkg="${pkg//\//\\/}"
+    # No need to escape "/" — it is not special in grep ERE
     local found
     found=$(yq -r '.packages | keys[]' "$lockfile" 2>/dev/null \
-      | grep -E "^/?${escaped_pkg}@${ver}$" || true)
+      | grep -E "^/?${pkg}@${ver}$" || true)
 
     if [ -n "$found" ]; then
       local wave
