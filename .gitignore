@@ -8,3 +8,4 @@ reports/*.md
 # Bases CVE telechargees
 data/*
 !data/.gitkeep
+scanner/iocs/.backup-*/

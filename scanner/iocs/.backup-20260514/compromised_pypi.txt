@@ -1,8 +1,0 @@
-# Paquets PyPI compromis — paquet@version
-# LiteLLM (TeamPCP, mars 2026)
-litellm@1.82.7
-litellm@1.82.8
-# Typosquatting
-termncolor@0.1.0
-colorinal@0.1.0
-chimera-sandbox-extensions@0.1.0
