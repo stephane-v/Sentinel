@@ -1,24 +1,24 @@
 # Patterns à rechercher dans le code source
 # Exfiltration endpoints
+webhook.site
 # Shai-Hulud signatures
+Shai-Hulud
+Sha1-Hulud
+s1ngularity-repository
 # SANDWORM_MODE
+SANDWORM_MODE
 # Autres malwares
-# Domaines C2 connus
-# Axios supply chain attack (mars 2026)
+QUIETVAULT
 CanisterWorm
 GlassWorm
-OrDeR_7077
-QUIETVAULT
-SANDWORM_MODE
-Sha1-Hulud
-Shai-Hulud
 TeamPCP
-checkmarx.zone
-ifstap@proton.me
-models.litellm.cloud
-nrwise@proton.me
-plain-crypto-js
-s1ngularity-repository
-sfrclak\.com
 tpcp-docs
-webhook.site
+# Domaines C2 connus
+checkmarx.zone
+models.litellm.cloud
+# Axios supply chain attack (mars 2026)
+plain-crypto-js
+sfrclak\.com
+OrDeR_7077
+nrwise@proton.me
+ifstap@proton.me

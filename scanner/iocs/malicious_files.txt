@@ -1,13 +1,13 @@
 # Fichiers malveillants connus — Supply Chain 2025-2026
 # Shai-Hulud v2
-setup_bun.js
-bun_environment.js
-shai-hulud-workflow.yml
-migrate-repos.sh
 # Shai-Hulud v1
-bundle.js
 # LiteLLM TeamPCP
-p.py
-tpcp.tar.gz
 # Fichiers .pth suspects (mécanisme LiteLLM 1.82.8)
+bun_environment.js
+bundle.js
 litellm_init.pth
+migrate-repos.sh
+p.py
+setup_bun.js
+shai-hulud-workflow.yml
+tpcp.tar.gz

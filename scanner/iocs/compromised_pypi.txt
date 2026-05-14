@@ -1,8 +1,18 @@
 # Paquets PyPI compromis — paquet@version
 # LiteLLM (TeamPCP, mars 2026)
+# Typosquatting
+PyProto2@>= 0
+WINRPCexploit@>= 0
+ascii2text@>= 0
+browserdiv@>= 0
+chimera-sandbox-extensions@0.1.0
+colorinal@0.1.0
+free-net-vpn2@>= 0
+free-net-vpn@>= 0
 litellm@1.82.7
 litellm@1.82.8
-# Typosquatting
+pyg-utils@>= 0
+pymocks@>= 0
 termncolor@0.1.0
-colorinal@0.1.0
-chimera-sandbox-extensions@0.1.0
+test-async@>= 0
+zlibsrc@>= 0
