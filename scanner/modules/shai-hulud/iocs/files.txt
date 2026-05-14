@@ -1,0 +1,5 @@
+# Runtime artifact filenames — Shai-Hulud execution traces
+# Lines prefixed with "sig:" require a content signature match (see scan.sh)
+router_runtime.js
+tanstack_runner.js
+sig:bundle.js

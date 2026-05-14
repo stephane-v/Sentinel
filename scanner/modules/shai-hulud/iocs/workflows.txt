@@ -1,0 +1,3 @@
+# Malicious GitHub Actions workflow filenames dropped by Shai-Hulud
+shai-hulud.yaml
+shai-hulud.yml

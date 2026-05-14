@@ -1,0 +1,2 @@
+# Persistence daemon names (plist stem / systemd unit name)
+gh-token-monitor
